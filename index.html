@@ -41,73 +41,97 @@
 </head>
 <body>
 <header>
-  <h1>🛡️ BlockageGuard — Security PoC Pages</h1>
+  <h1>&#x1F6E1;&#xFE0F; BlockageGuard &mdash; Security PoC Pages</h1>
   <span class="badge">AUTHORIZED PENTEST ONLY</span>
 </header>
 <div class="container">
   <div class="warning">
-    <strong>⚠️ Authorized Use Only</strong> — These proof-of-concept pages are for
+    <strong>&#x26A0;&#xFE0F; Authorized Use Only</strong> &mdash; These proof-of-concept pages are for
     internal security team review of confirmed vulnerabilities only.
-    All tests were conducted under written authorization.
+    All tests were conducted under written authorization. Session 5 &mdash; 2026-04-23.
   </div>
 
-  <h2>🔴 Critical / High Findings — Live PoCs</h2>
+  <h2>&#x1F534; Critical Findings &mdash; Live PoCs</h2>
 
   <div class="card">
     <div class="card-info">
-      <h3>CSRF Login Attack — alts.zone Admin Panel</h3>
-      <p>Cross-origin form auto-submission to admin login endpoint processes with no token check or Origin validation.
-         Attacker can force a victim admin's browser to authenticate as the attacker (session fixation / brute-force relay).</p>
-      <div class="target">POST https://alts.zone/admin/session/signin · F-091/092</div>
-      <a class="btn" href="csrf-altszone-admin.html">▶ View PoC</a>
+      <h3>Rate Limit Bypass via X-Forwarded-For &mdash; alts.cool Login</h3>
+      <p>The 3-attempt rate limit on customer/admin login is bypassed by sending a random
+         <code>X-Forwarded-For</code> IP on each request. Enables unlimited brute-force with
+         no lockout. Combined with admin panel at <code>/login</code> (no CAPTCHA).</p>
+      <div class="target">POST https://alts.cool/api/auth/login &middot; F-096</div>
+      <a class="btn" href="ratelimit-bypass-poc.html">&#x25B6; View PoC</a>
     </div>
     <span class="sev sev-critical">CRITICAL</span>
   </div>
 
   <div class="card">
     <div class="card-info">
-      <h3>CSRF Checkout Trigger — alts.cool</h3>
-      <p>Checkout API accepts cross-origin JSON POST without CSRF token.
-         If an authenticated customer visits a malicious page, their account can be used to attempt a purchase.</p>
-      <div class="target">POST https://alts.cool/api/payment/checkout · F-093</div>
-      <a class="btn" href="csrf-altscool-checkout.html">▶ View PoC</a>
+      <h3>CSRF Login Attack &mdash; alts.zone Admin Panel</h3>
+      <p>Cross-origin form auto-submission to admin login endpoint processes with no token check
+         or Origin validation. Attacker can force admin browser to authenticate as attacker
+         (session fixation / brute-force relay).</p>
+      <div class="target">POST https://alts.zone/admin/session/signin &middot; F-091/092</div>
+      <a class="btn" href="csrf-altszone-admin.html">&#x25B6; View PoC</a>
     </div>
-    <span class="sev sev-high">HIGH</span>
+    <span class="sev sev-critical">CRITICAL</span>
   </div>
 
   <div class="card">
     <div class="card-info">
-      <h3>Subdomain Takeover — DNS Orphan Survey</h3>
-      <p>8 subdomains across alts.cool, premiumalts.to, and ravealts.com have no DNS A record.
-         If a CNAME is added pointing to a claimable service, full takeover is possible.</p>
-      <div class="target">cpanel.alts.cool · mail.alts.cool · webmail.alts.cool · webdisk.alts.cool + 4 more</div>
-      <a class="btn" href="subdomain-takeover.html">▶ View Details</a>
+      <h3>CSRF Checkout Trigger &mdash; alts.cool</h3>
+      <p>Checkout API accepts cross-origin POST. Authenticated customer visiting a malicious page
+         can have their account used to trigger a purchase silently.</p>
+      <div class="target">POST https://alts.cool/api/payment/checkout &middot; F-093</div>
+      <a class="btn" href="csrf-altscool-checkout.html">&#x25B6; View PoC</a>
+    </div>
+    <span class="sev sev-high">HIGH</span>
+  </div>
+
+  <h2>&#x1F7E1; Medium Findings</h2>
+
+  <div class="card">
+    <div class="card-info">
+      <h3>Subdomain Takeover &mdash; DNS Orphan Survey</h3>
+      <p>8 subdomains across alts.cool, premiumalts.to, and ravealts.com have no live DNS record.
+         No claimable CNAMEs found today, but orphaned entries are a future takeover risk.</p>
+      <div class="target">cpanel.alts.cool + 7 more &middot; DNS scan 2026-04-23</div>
+      <a class="btn" href="subdomain-takeover.html">&#x25B6; View Details</a>
     </div>
     <span class="sev sev-medium">MEDIUM</span>
   </div>
 
   <div class="card">
     <div class="card-info">
-      <h3>Session Cookie Flags — alts.zone PHPSESSID</h3>
-      <p>PHPSESSID is JS-readable (no HttpOnly). Combined with any future XSS or CDN bypass,
-         full session takeover is trivial: <code>document.cookie</code> returns the full session token.</p>
-      <div class="target">alts.zone · F-033/046</div>
+      <h3>Notify Endpoint No Rate Limit &mdash; alts.cool</h3>
+      <p>12+ consecutive requests to <code>/api/products/notify</code> with no throttle.
+         Can be used to send unsolicited notification emails to arbitrary addresses at scale.</p>
+      <div class="target">POST https://alts.cool/api/products/notify &middot; F-098</div>
     </div>
-    <span class="sev sev-critical">CRITICAL</span>
+    <span class="sev sev-medium">MEDIUM</span>
   </div>
 
-  <h2>✅ Passing Security Controls</h2>
+  <h2>&#x2705; Passing Controls</h2>
+
   <div class="card">
     <div class="card-info">
-      <h3>XSS — All sites clean</h3>
-      <p>7 payload types × all form inputs + URL params across 6 sites — zero execution confirmed via
-         window.__xss_fired browser flag detection. All inputs either not reflected or properly HTML-encoded.</p>
-      <div class="target">alts.zone · alts.cool · 4d4pshop.com · premiumalts.to · ravealts.com · dash.ravealts.com · F-090</div>
+      <h3>XSS &mdash; All sites clean</h3>
+      <p>7 payload types across all form inputs and URL params on 6 sites. Zero execution confirmed
+         via <code>window.__xss_fired</code> detection. F-090</p>
+    </div>
+    <span class="sev sev-pass">PASS</span>
+  </div>
+
+  <div class="card">
+    <div class="card-info">
+      <h3>Rate limit bypass &mdash; alts.zone admin login resistant</h3>
+      <p>All 8 IP-spoofing headers (<code>X-Forwarded-For</code>, <code>X-Real-IP</code>,
+         <code>CF-Connecting-IP</code>, etc.) still hit the lockout. F-097</p>
     </div>
     <span class="sev sev-pass">PASS</span>
   </div>
 
 </div>
-<footer>BlockageGuard AutoProver · Pentest 2026-04-23 · blockageguard.github.io</footer>
+<footer>BlockageGuard AutoProver &middot; Pentest 2026-04-23 Session 5 &middot; blockageguard.github.io</footer>
 </body>
 </html>
