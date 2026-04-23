@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Subdomain Takeover Survey — BlockageGuard</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background: #0d1117; color: #c9d1d9;
+         max-width: 860px; margin: 40px auto; padding: 20px; }
+  h1 { color: #e3b341; font-size: 1.2rem; }
+  .meta { background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+          padding: 16px; margin: 16px 0; font-size: 0.85rem; line-height: 1.6; }
+  table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 0.82rem; }
+  th { background: #161b22; color: #f0f6fc; text-align: left; padding: 10px 12px;
+       border-bottom: 1px solid #30363d; }
+  td { padding: 9px 12px; border-bottom: 1px solid #21262d; }
+  tr:hover td { background: #161b22; }
+  .dead { color: #f85149; }
+  .live { color: #3fb950; }
+  .risk-med  { color: #e3b341; }
+  .risk-low  { color: #8b949e; }
+  code { background: #161b22; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; }
+  h2 { margin-top: 28px; color: #f0f6fc; font-size: 1rem;
+       border-bottom: 1px solid #30363d; padding-bottom: 6px; }
+</style>
+</head>
+<body>
+<h1>🔍 Subdomain Takeover Survey</h1>
+<div class="meta">
+  <strong>Method:</strong> DNS A + CNAME scan across all discovered subdomains<br>
+  <strong>Tools:</strong> dig, crt.sh CT logs, brute-force (32 common prefixes)<br>
+  <strong>Result:</strong> 8 orphaned subdomains found with no DNS A record.
+  No claimable CNAME targets (GitHub Pages, Heroku, Netlify, etc.) detected in current DNS.<br>
+  <strong>Risk:</strong> If any of these subdomains are given CNAME records pointing to a
+  claimable service in the future, full subdomain takeover is possible.
+</div>
+
+<h2>Orphaned Subdomains (no A record, no live CNAME)</h2>
+<table>
+  <tr><th>Subdomain</th><th>Parent Domain</th><th>DNS Status</th><th>Historical</th><th>Risk</th></tr>
+  <tr>
+    <td><code>cpanel.alts.cool</code></td><td>alts.cool</td>
+    <td class="dead">No A / No CNAME</td>
+    <td>TLS cert exists in CT logs (was live)</td>
+    <td class="risk-med">Medium — was once live</td>
+  </tr>
+  <tr>
+    <td><code>mail.alts.cool</code></td><td>alts.cool</td>
+    <td class="dead">No A / No CNAME</td>
+    <td>TLS cert exists in CT logs</td>
+    <td class="risk-low">Low</td>
+  </tr>
+  <tr>
+    <td><code>webmail.alts.cool</code></td><td>alts.cool</td>
+    <td class="dead">No A / No CNAME</td>
+    <td>TLS cert exists in CT logs</td>
+    <td class="risk-low">Low</td>
+  </tr>
+  <tr>
+    <td><code>webdisk.alts.cool</code></td><td>alts.cool</td>
+    <td class="dead">No A / No CNAME</td>
+    <td>TLS cert exists in CT logs</td>
+    <td class="risk-low">Low</td>
+  </tr>
+  <tr>
+    <td><code>cpcalendars.alts.cool</code></td><td>alts.cool</td>
+    <td class="dead">No A / No CNAME</td>
+    <td>TLS cert exists in CT logs</td>
+    <td class="risk-low">Low</td>
+  </tr>
+  <tr>
+    <td><code>cpcontacts.alts.cool</code></td><td>alts.cool</td>
+    <td class="dead">No A / No CNAME</td>
+    <td>TLS cert exists in CT logs</td>
+    <td class="risk-low">Low</td>
+  </tr>
+  <tr>
+    <td><code>www.premiumalts.to</code></td><td>premiumalts.to</td>
+    <td class="dead">No A / No CNAME</td>
+    <td>Main site accessible via root only</td>
+    <td class="risk-med">Medium — www-to-root missing</td>
+  </tr>
+  <tr>
+    <td><code>www.ravealts.com</code></td><td>ravealts.com</td>
+    <td class="dead">No A / No CNAME</td>
+    <td>Main site accessible via root only</td>
+    <td class="risk-med">Medium — www-to-root missing</td>
+  </tr>
+</table>
+
+<h2>Fix Recommendations</h2>
+<ul style="padding-left:20px;line-height:2">
+  <li>Add <code>CNAME www → @</code> for <code>premiumalts.to</code> and <code>ravealts.com</code>
+      to prevent someone claiming these via a future provider</li>
+  <li>Remove DNS entries (or add CNAME records to a controlled target) for all orphaned
+      <code>alts.cool</code> cPanel subdomains</li>
+  <li>Regularly audit DNS with a tool like <code>subjack</code> or <code>nuclei -t takeovers/</code></li>
+  <li>Implement a DNS change approval process to prevent accidental orphaned records</li>
+</ul>
+</body>
+</html>
