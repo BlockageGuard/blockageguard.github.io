@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PoC: cPanel/WHM Open — alts.zone (F-001)</title>
+<style>
+  body { font-family: monospace; background:#0d1117; color:#c9d1d9; max-width:860px; margin:40px auto; padding:20px; }
+  h1 { color:#f85149; font-size:1.2rem; }
+  .meta { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:16px; margin:16px 0; font-size:.85rem; line-height:1.6; }
+  table { width:100%; border-collapse:collapse; font-size:.82rem; margin-top:10px; }
+  th { background:#161b22; color:#f0f6fc; text-align:left; padding:8px 10px; border-bottom:1px solid #30363d; }
+  td { padding:7px 10px; border-bottom:1px solid #21262d; }
+  .open { color:#f85149; font-weight:700; }
+  .root { color:#f85149; }
+  a.ext { color:#58a6ff; }
+  code { background:#21262d; padding:2px 6px; border-radius:3px; }
+</style>
+</head>
+<body>
+<h1>🚨 PoC: cPanel/WHM Publicly Accessible — alts.zone (F-001)</h1>
+<div class="meta">
+  <strong>Finding:</strong> F-001 · Severity: HIGH<br>
+  <strong>Root cause:</strong> cPanel and WHM admin panels are accessible from the public internet
+  with no IP allowlist or VPN requirement<br>
+  <strong>Direct IP:</strong> <code>51.68.160.16</code><br>
+  <strong>Impact:</strong> WHM (ports 2086/2087) provides root-level server control.
+  Anyone on the internet can attempt to brute-force admin credentials directly.
+</div>
+
+<table>
+  <tr><th>Port</th><th>Service</th><th>Status</th><th>Risk</th><th>Live Link</th></tr>
+  <tr><td>2082</td><td>cPanel HTTP</td><td class="open">OPEN</td><td>HIGH</td>
+      <td><a class="ext" href="http://51.68.160.16:2082" target="_blank">Open ↗</a></td></tr>
+  <tr><td>2083</td><td>cPanel HTTPS</td><td class="open">OPEN</td><td>HIGH</td>
+      <td><a class="ext" href="https://51.68.160.16:2083" target="_blank">Open ↗</a></td></tr>
+  <tr><td>2086</td><td>WHM HTTP</td><td class="open root">OPEN — ROOT LEVEL</td><td class="root">CRITICAL</td>
+      <td><a class="ext" href="http://51.68.160.16:2086" target="_blank">Open ↗</a></td></tr>
+  <tr><td>2087</td><td>WHM HTTPS</td><td class="open root">OPEN — ROOT LEVEL</td><td class="root">CRITICAL</td>
+      <td><a class="ext" href="https://51.68.160.16:2087" target="_blank">Open ↗</a></td></tr>
+  <tr><td>2095</td><td>Webmail HTTP</td><td class="open">OPEN</td><td>MEDIUM</td>
+      <td><a class="ext" href="http://51.68.160.16:2095" target="_blank">Open ↗</a></td></tr>
+  <tr><td>2096</td><td>Webmail HTTPS</td><td class="open">OPEN</td><td>MEDIUM</td>
+      <td><a class="ext" href="https://51.68.160.16:2096" target="_blank">Open ↗</a></td></tr>
+</table>
+
+<p style="margin-top:16px;color:#e3b341;">⚡ Fix: In WHM → Host Access Control, restrict ports 2082–2087 to staff IP addresses only.
+Alternatively, put cPanel behind a VPN.</p>
+</body>
+</html>
