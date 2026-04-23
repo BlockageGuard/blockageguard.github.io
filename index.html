@@ -3,135 +3,147 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BlockageGuard — Security Research PoC Pages</title>
+<title>BlockageGuard &#x2014; Security Research PoC Pages</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-         background: #0d1117; color: #c9d1d9; min-height: 100vh; }
-  header { background: #161b22; border-bottom: 1px solid #30363d; padding: 20px 40px;
-           display: flex; align-items: center; gap: 16px; }
-  header h1 { font-size: 1.4rem; color: #f0f6fc; }
-  header .badge { background: #238636; color: #fff; padding: 3px 10px;
-                  border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
-  .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
-  .warning { background: #3d1a00; border: 1px solid #f85149; border-radius: 8px;
-             padding: 16px 20px; margin-bottom: 32px; }
-  .warning strong { color: #f85149; }
-  h2 { color: #f0f6fc; font-size: 1.1rem; margin-bottom: 16px; margin-top: 32px;
-       border-bottom: 1px solid #30363d; padding-bottom: 8px; }
-  .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px;
-          padding: 18px 20px; margin-bottom: 12px; display: flex;
-          justify-content: space-between; align-items: flex-start; gap: 16px; }
-  .card:hover { border-color: #58a6ff; }
-  .card-info h3 { color: #f0f6fc; font-size: 0.95rem; margin-bottom: 4px; }
-  .card-info p { font-size: 0.82rem; color: #8b949e; line-height: 1.4; }
-  .card-info .target { font-size: 0.75rem; color: #58a6ff; margin-top: 4px; font-family: monospace; }
-  .sev { padding: 3px 10px; border-radius: 4px; font-size: 0.72rem; font-weight: 700;
-         white-space: nowrap; }
-  .sev-critical { background: #f851491a; color: #f85149; border: 1px solid #f85149; }
-  .sev-high     { background: #fb8f441a; color: #fb8f44; border: 1px solid #fb8f44; }
-  .sev-medium   { background: #e3b3411a; color: #e3b341; border: 1px solid #e3b341; }
-  .sev-pass     { background: #2386361a; color: #3fb950; border: 1px solid #3fb950; }
-  a.btn { display: inline-block; background: #21262d; border: 1px solid #30363d;
-          color: #c9d1d9; padding: 5px 14px; border-radius: 6px; font-size: 0.8rem;
-          text-decoration: none; white-space: nowrap; margin-top: 8px; }
-  a.btn:hover { background: #30363d; color: #f0f6fc; }
-  footer { text-align: center; padding: 40px; color: #484f58; font-size: 0.8rem; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh}
+  header{background:#161b22;border-bottom:1px solid #30363d;padding:18px 40px;display:flex;align-items:center;gap:12px}
+  header h1{font-size:1.3rem;color:#f0f6fc}
+  .badge{background:#238636;color:#fff;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+  .container{max-width:960px;margin:0 auto;padding:36px 20px}
+  .warn{background:#3d1a00;border:1px solid #f85149;border-radius:8px;padding:14px 18px;margin-bottom:28px;font-size:.83rem}
+  .warn strong{color:#f85149}
+  h2{color:#f0f6fc;font-size:1rem;margin:28px 0 12px;border-bottom:1px solid #30363d;padding-bottom:7px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+  .card:hover{border-color:#58a6ff}
+  .card h3{color:#f0f6fc;font-size:.92rem}
+  .card p{font-size:.8rem;color:#8b949e;line-height:1.45;flex:1}
+  .card .target{font-size:.72rem;color:#58a6ff;font-family:monospace}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+  .sev{padding:2px 9px;border-radius:4px;font-size:.68rem;font-weight:700;white-space:nowrap}
+  .c{background:#f851491a;color:#f85149;border:1px solid #f85149}
+  .h{background:#fb8f441a;color:#fb8f44;border:1px solid #fb8f44}
+  .m{background:#e3b3411a;color:#e3b341;border:1px solid #e3b341}
+  .p{background:#2386361a;color:#3fb950;border:1px solid #3fb950}
+  a.btn{background:#21262d;border:1px solid #30363d;color:#c9d1d9;padding:4px 12px;border-radius:5px;font-size:.75rem;text-decoration:none;white-space:nowrap}
+  a.btn:hover{background:#30363d;color:#f0f6fc}
+  footer{text-align:center;padding:36px;color:#484f58;font-size:.78rem}
 </style>
 </head>
 <body>
 <header>
-  <h1>&#x1F6E1;&#xFE0F; BlockageGuard &mdash; Security PoC Pages</h1>
-  <span class="badge">AUTHORIZED PENTEST ONLY</span>
+  <h1>&#x1F6E1;&#xFE0F; BlockageGuard &mdash; Pentest PoC Pages</h1>
+  <span class="badge">AUTHORIZED USE ONLY</span>
 </header>
 <div class="container">
-  <div class="warning">
-    <strong>&#x26A0;&#xFE0F; Authorized Use Only</strong> &mdash; These proof-of-concept pages are for
-    internal security team review of confirmed vulnerabilities only.
-    All tests were conducted under written authorization. Session 5 &mdash; 2026-04-23.
+  <div class="warn"><strong>&#x26A0;&#xFE0F; Internal Use Only</strong> &mdash;
+  These proof-of-concept pages demonstrate confirmed vulnerabilities from an authorized pentest.
+  Session 5 &mdash; 2026-04-23 &mdash; 113 findings across 6 sites.</div>
+
+  <h2>&#x1F534; Critical</h2>
+  <div class="grid">
+
+    <div class="card">
+      <div class="row"><h3>Rate Limit Bypass &mdash; alts.cool</h3><span class="sev c">CRITICAL</span></div>
+      <p>X-Forwarded-For header rotation bypasses the 3-attempt limit on login. Unlimited brute-force possible.</p>
+      <div class="target">POST /api/auth/login &middot; F-096</div>
+      <a class="btn" href="ratelimit-bypass-poc.html">&#x25B6; Run PoC</a>
+    </div>
+
+    <div class="card">
+      <div class="row"><h3>CSRF Admin Login &mdash; alts.zone</h3><span class="sev c">CRITICAL</span></div>
+      <p>Cross-origin form submission reaches admin login with no CSRF token or Origin check.</p>
+      <div class="target">POST /admin/session/signin &middot; F-091/092</div>
+      <a class="btn" href="csrf-altszone-admin.html">&#x25B6; Run PoC</a>
+    </div>
+
+    <div class="card">
+      <div class="row"><h3>Session Cookie Theft &mdash; alts.zone</h3><span class="sev c">CRITICAL</span></div>
+      <p>PHPSESSID has no HttpOnly flag &mdash; JS-readable. Any injected 3rd-party script can steal admin sessions.</p>
+      <div class="target">document.cookie &rarr; PHPSESSID &middot; F-033/046</div>
+      <a class="btn" href="session-theft-poc.html">&#x25B6; View PoC</a>
+    </div>
+
+    <div class="card">
+      <div class="row"><h3>PHP 7.4.33 EOL &mdash; alts.zone</h3><span class="sev c">CRITICAL</span></div>
+      <p>End-of-life PHP with 6+ unpatched CVEs including 2&times; CVSS 9.8 RCE vulnerabilities.</p>
+      <div class="target">X-Powered-By: PHP/7.4.33 &middot; F-002/085</div>
+      <a class="btn" href="php-version-poc.html">&#x25B6; CVE Table</a>
+    </div>
+
   </div>
 
-  <h2>&#x1F534; Critical Findings &mdash; Live PoCs</h2>
+  <h2>&#x1F7E0; High</h2>
+  <div class="grid">
 
-  <div class="card">
-    <div class="card-info">
-      <h3>Rate Limit Bypass via X-Forwarded-For &mdash; alts.cool Login</h3>
-      <p>The 3-attempt rate limit on customer/admin login is bypassed by sending a random
-         <code>X-Forwarded-For</code> IP on each request. Enables unlimited brute-force with
-         no lockout. Combined with admin panel at <code>/login</code> (no CAPTCHA).</p>
-      <div class="target">POST https://alts.cool/api/auth/login &middot; F-096</div>
-      <a class="btn" href="ratelimit-bypass-poc.html">&#x25B6; View PoC</a>
+    <div class="card">
+      <div class="row"><h3>CSRF Checkout &mdash; alts.cool</h3><span class="sev h">HIGH</span></div>
+      <p>Checkout endpoint processes cross-origin POST before auth check. Authenticated victim can be forced to purchase.</p>
+      <div class="target">POST /api/payment/checkout &middot; F-093</div>
+      <a class="btn" href="csrf-altscool-checkout.html">&#x25B6; Run PoC</a>
     </div>
-    <span class="sev sev-critical">CRITICAL</span>
+
+    <div class="card">
+      <div class="row"><h3>Clickjacking &mdash; alts.zone + alts.cool</h3><span class="sev h">HIGH</span></div>
+      <p>No X-Frame-Options header &mdash; both admin panels can be embedded in iframes for UI redressing attacks.</p>
+      <div class="target">iframe embed &middot; F-036/037</div>
+      <a class="btn" href="clickjacking-poc.html">&#x25B6; View iframes</a>
+    </div>
+
+    <div class="card">
+      <div class="row"><h3>CORS Misconfiguration &mdash; alts.zone</h3><span class="sev h">HIGH</span></div>
+      <p>Access-Control-Allow-Origin: * with credentials:true on admin endpoint &mdash; broken CORS config.</p>
+      <div class="target">/admin/session/signin &middot; F-059</div>
+      <a class="btn" href="cors-poc.html">&#x25B6; Test CORS</a>
+    </div>
+
+    <div class="card">
+      <div class="row"><h3>cPanel/WHM Open &mdash; alts.zone</h3><span class="sev h">HIGH</span></div>
+      <p>Ports 2082&ndash;2087 open to internet. WHM (root-level) reachable by anyone. No IP restriction.</p>
+      <div class="target">51.68.160.16 :2082&ndash;2087 &middot; F-001</div>
+      <a class="btn" href="cpanel-open-poc.html">&#x25B6; Port Links</a>
+    </div>
+
   </div>
 
-  <div class="card">
-    <div class="card-info">
-      <h3>CSRF Login Attack &mdash; alts.zone Admin Panel</h3>
-      <p>Cross-origin form auto-submission to admin login endpoint processes with no token check
-         or Origin validation. Attacker can force admin browser to authenticate as attacker
-         (session fixation / brute-force relay).</p>
-      <div class="target">POST https://alts.zone/admin/session/signin &middot; F-091/092</div>
-      <a class="btn" href="csrf-altszone-admin.html">&#x25B6; View PoC</a>
-    </div>
-    <span class="sev sev-critical">CRITICAL</span>
-  </div>
+  <h2>&#x1F7E1; Medium</h2>
+  <div class="grid">
 
-  <div class="card">
-    <div class="card-info">
-      <h3>CSRF Checkout Trigger &mdash; alts.cool</h3>
-      <p>Checkout API accepts cross-origin POST. Authenticated customer visiting a malicious page
-         can have their account used to trigger a purchase silently.</p>
-      <div class="target">POST https://alts.cool/api/payment/checkout &middot; F-093</div>
-      <a class="btn" href="csrf-altscool-checkout.html">&#x25B6; View PoC</a>
+    <div class="card">
+      <div class="row"><h3>Inventory Disclosure &mdash; alts.cool</h3><span class="sev m">MEDIUM</span></div>
+      <p>Checkout error leaks full stockCounts for every product to unauthenticated requests.</p>
+      <div class="target">POST /api/payment/checkout (400 error) &middot; F-101</div>
+      <a class="btn" href="inventory-disclosure-poc.html">&#x25B6; Fetch Live Stock</a>
     </div>
-    <span class="sev sev-high">HIGH</span>
-  </div>
 
-  <h2>&#x1F7E1; Medium Findings</h2>
-
-  <div class="card">
-    <div class="card-info">
-      <h3>Subdomain Takeover &mdash; DNS Orphan Survey</h3>
-      <p>8 subdomains across alts.cool, premiumalts.to, and ravealts.com have no live DNS record.
-         No claimable CNAMEs found today, but orphaned entries are a future takeover risk.</p>
-      <div class="target">cpanel.alts.cool + 7 more &middot; DNS scan 2026-04-23</div>
-      <a class="btn" href="subdomain-takeover.html">&#x25B6; View Details</a>
+    <div class="card">
+      <div class="row"><h3>Subdomain Takeover Survey</h3><span class="sev m">MEDIUM</span></div>
+      <p>8 orphaned subdomains with no DNS A record across alts.cool, premiumalts.to, ravealts.com.</p>
+      <div class="target">cpanel.alts.cool + 7 more</div>
+      <a class="btn" href="subdomain-takeover.html">&#x25B6; View Report</a>
     </div>
-    <span class="sev sev-medium">MEDIUM</span>
-  </div>
 
-  <div class="card">
-    <div class="card-info">
-      <h3>Notify Endpoint No Rate Limit &mdash; alts.cool</h3>
-      <p>12+ consecutive requests to <code>/api/products/notify</code> with no throttle.
-         Can be used to send unsolicited notification emails to arbitrary addresses at scale.</p>
-      <div class="target">POST https://alts.cool/api/products/notify &middot; F-098</div>
-    </div>
-    <span class="sev sev-medium">MEDIUM</span>
   </div>
 
   <h2>&#x2705; Passing Controls</h2>
-
-  <div class="card">
-    <div class="card-info">
-      <h3>XSS &mdash; All sites clean</h3>
-      <p>7 payload types across all form inputs and URL params on 6 sites. Zero execution confirmed
-         via <code>window.__xss_fired</code> detection. F-090</p>
+  <div class="grid">
+    <div class="card">
+      <div class="row"><h3>XSS &mdash; All sites clean</h3><span class="sev p">PASS</span></div>
+      <p>7 payloads &times; all form inputs + URL params across 6 sites. Zero execution via window.__xss_fired. F-090</p>
     </div>
-    <span class="sev sev-pass">PASS</span>
-  </div>
-
-  <div class="card">
-    <div class="card-info">
-      <h3>Rate limit bypass &mdash; alts.zone admin login resistant</h3>
-      <p>All 8 IP-spoofing headers (<code>X-Forwarded-For</code>, <code>X-Real-IP</code>,
-         <code>CF-Connecting-IP</code>, etc.) still hit the lockout. F-097</p>
+    <div class="card">
+      <div class="row"><h3>Business Logic &mdash; Checkout secure</h3><span class="sev p">PASS</span></div>
+      <p>Negative qty, price override, INT overflow, arbitrary product IDs &mdash; all rejected server-side. F-100</p>
     </div>
-    <span class="sev sev-pass">PASS</span>
+    <div class="card">
+      <div class="row"><h3>Rate Limit &mdash; alts.zone resistant</h3><span class="sev p">PASS</span></div>
+      <p>All 8 IP-spoofing headers (X-Forwarded-For, CF-Connecting-IP, etc.) still hit lockout. F-097</p>
+    </div>
   </div>
 
 </div>
-<footer>BlockageGuard AutoProver &middot; Pentest 2026-04-23 Session 5 &middot; blockageguard.github.io</footer>
+<footer>BlockageGuard AutoProver &middot; Pentest Session 5 &mdash; 2026-04-23 &middot;
+<a href="https://github.com/BlockageGuard/blockageguard.github.io" style="color:#484f58">GitHub</a></footer>
 </body>
 </html>
