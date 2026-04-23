@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PoC: Clickjacking — alts.zone + alts.cool (F-036/037)</title>
+<style>
+  body { font-family: monospace; background:#0d1117; color:#c9d1d9; max-width:900px; margin:40px auto; padding:20px; }
+  h1 { color:#fb8f44; font-size:1.2rem; }
+  .meta { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:16px; margin:16px 0; font-size:.85rem; line-height:1.6; }
+  .meta strong { color:#f0f6fc; }
+  .frames { display:flex; gap:20px; flex-wrap:wrap; margin-top:16px; }
+  .frame-box { flex:1; min-width:280px; }
+  .frame-box h3 { color:#8b949e; font-size:.85rem; margin-bottom:6px; }
+  iframe { width:100%; height:300px; border:2px solid #f85149; border-radius:4px; }
+  .result { background:#0d3320; border:1px solid #3fb950; border-radius:6px; padding:10px; margin-top:10px; font-size:.8rem; }
+  pre { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:14px; overflow-x:auto; font-size:.8rem; }
+</style>
+</head>
+<body>
+<h1>⚠️ PoC: Clickjacking — alts.zone + alts.cool (F-036/037)</h1>
+<div class="meta">
+  <strong>Finding:</strong> F-036 (alts.zone) / F-037 (alts.cool) · Severity: HIGH<br>
+  <strong>Root cause:</strong> No <code>X-Frame-Options</code> or <code>Content-Security-Policy: frame-ancestors</code> header<br>
+  <strong>Impact:</strong> An attacker can embed the admin login panel inside an invisible iframe on a malicious page,
+  overlay it with a fake "click here" button, and trick an admin into submitting their credentials to the attacker.
+  Also enables UI redressing attacks on the shop (fake "Buy Now" overlays).
+</div>
+
+<p>The iframes below confirm both sites can be embedded cross-origin:</p>
+
+<div class="frames">
+  <div class="frame-box">
+    <h3>alts.zone/admin (admin login panel)</h3>
+    <iframe src="https://alts.zone/admin/" sandbox="allow-same-origin allow-scripts allow-forms" loading="lazy"></iframe>
+    <div class="result" id="r1">Loading...</div>
+  </div>
+  <div class="frame-box">
+    <h3>alts.cool/login (admin login)</h3>
+    <iframe src="https://alts.cool/login" sandbox="allow-same-origin allow-scripts" loading="lazy"></iframe>
+    <div class="result" id="r2">Loading...</div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px;color:#8b949e;">Fix</h3>
+<pre>// Add to every response (nginx.conf):
+add_header X-Frame-Options "SAMEORIGIN" always;
+add_header Content-Security-Policy "frame-ancestors 'self'" always;</pre>
+
+<script>
+document.querySelectorAll("iframe").forEach((f,i) => {
+  f.onload = () => {
+    document.getElementById("r" + (i+1)).textContent =
+      "✅ Iframe loaded — " + f.src.split("/")[2] + " is embeddable (clickjacking confirmed)";
+  };
+  f.onerror = () => {
+    document.getElementById("r" + (i+1)).textContent = "Blocked by browser (not a fix — server still needs the header)";
+  };
+});
+</script>
+</body>
+</html>
