@@ -83,7 +83,7 @@
        &rarr; real order issued to attacker. Basket permanently stolen/destroyed.</p>
     <div class="target">PATCH backend.premiumalts.to/checkout/{id}/customer &middot; F-155b</div>
     <div class="proof">&#x2713; Proven: checkout 6fc25f05 PATCH'd unauthenticated &rarr; ORD-Q76NJUDN &euro;38.95</div>
-    <div class="row"><span></span><span class="sev c">CRITICAL</span></div>
+    <div class="row"><a class="btn btn-r" href="checkout-idor.html">&#x25B6; F-000 / F-0a PoC</a><span class="sev c">CRITICAL</span></div>
   </div>
 
   <div class="card">
@@ -93,7 +93,7 @@
        Real Icenox payment URL generated in victim's name.</p>
     <div class="target">POST backend.premiumalts.to/checkout/{id}/complete &middot; F-155a</div>
     <div class="proof">&#x2713; Proven: admin checkout ORD-6VTBN7ZM completed by test account &euro;38.95</div>
-    <div class="row"><span></span><span class="sev c">CRITICAL</span></div>
+    <div class="row"><a class="btn btn-r" href="checkout-hijack-chain.html">&#x25B6; Full Chain PoC</a><span class="sev c">CRITICAL</span></div>
   </div>
 
   <div class="card">
@@ -148,7 +148,7 @@
        OAuth2 client_credentials confirmed working.</p>
     <div class="target">POST vaultwarden.premiumalts.to/api/accounts/register &middot; F-025</div>
     <div class="proof">&#x2713; Proven: account 59a083df, premium=true, OAuth token issued</div>
-    <div class="row"><span></span><span class="sev c">CRITICAL</span></div>
+    <div class="row"><a class="btn btn-r" href="vaultwarden-open-reg.html">&#x25B6; View PoC</a><span class="sev c">CRITICAL</span></div>
   </div>
 
   <div class="card">
@@ -192,27 +192,12 @@
   </div>
 
   <div class="card">
-    <h3>No Rate Limit — Login (premiumalts.to &amp; secured.wtf) <span class="nb">S11</span></h3>
-    <p>20 rapid POST attempts on premiumalts.to login &mdash; all 400, never 429. 10 on secured.wtf &mdash;
-       all 401, never 429. Both open to unlimited automated credential stuffing.</p>
-    <div class="target">POST backend.premiumalts.to/api/auth/login &middot; F-014</div>
-    <div class="row"><span></span><span class="sev h">HIGH</span></div>
-  </div>
-
-  <div class="card">
-    <h3>No Rate Limit — Coupon &amp; Credit Redeem &mdash; premiumalts.to <span class="nb">S11</span></h3>
-    <p>12 rapid coupon validation requests &mdash; never 429. 8 credit redeem requests &mdash; never 429.
-       Enables automated coupon code brute-force and credit code enumeration.</p>
-    <div class="target">GET /coupon/validate/{code} &bull; POST /api/me/credit/redeem &middot; F-015/016</div>
-    <div class="row"><span></span><span class="sev h">HIGH</span></div>
-  </div>
-
-  <div class="card">
-    <h3>No Rate Limit — Forgot Password &mdash; premiumalts.to <span class="nb">S11</span></h3>
-    <p>10 rapid requests, all HTTP 200, never throttled. Enables email bombing any account with
-       unlimited password reset spam.</p>
-    <div class="target">POST backend.premiumalts.to/api/auth/forgot-password &middot; F-024</div>
-    <div class="row"><span></span><span class="sev h">HIGH</span></div>
+    <h3>No Rate Limit — Login / Coupon / Redeem / Forgot-Password &mdash; premiumalts.to <span class="nb">S11</span></h3>
+    <p>Four endpoints with no throttling: login (20 attempts, never 429), coupon validation (12 attempts),
+       credit redeem (8 attempts), forgot-password (10 attempts). Enables unlimited credential stuffing,
+       coupon brute-force, credit code enumeration, and email bombing.</p>
+    <div class="target">F-014 / F-015 / F-016 / F-024 &mdash; backend.premiumalts.to</div>
+    <div class="row"><a class="btn" href="premiumalts-rate-limits.html">&#x25B6; View All 4 PoCs</a><span class="sev h">HIGH</span></div>
   </div>
 
   <div class="card">
@@ -220,7 +205,7 @@
     <p>Session cookie readable via <code>document.cookie</code>. Any future XSS immediately enables
        session hijacking for all logged-in users including administrators.</p>
     <div class="target">alts.zone Set-Cookie: PHPSESSID &middot; F-002</div>
-    <div class="row"><span></span><span class="sev h">HIGH</span></div>
+    <div class="row"><a class="btn" href="session-theft-poc.html">&#x25B6; PoC</a><span class="sev h">HIGH</span></div>
   </div>
 
   <div class="card">
@@ -260,7 +245,16 @@
        HTTP 401), no-auth requests still return HTTP 200.</p>
     <div class="target">POST api.ravealts.com/api/alts/purchase/get-account-data &middot; F-162 &middot; CWE-306</div>
     <div class="proof">&#x2713; No-auth → HTTP 200 invalid_input &bull; Fake-auth → HTTP 401 invalid_api_key &bull; Strict path (/api/alts) also affected</div>
-    <div class="row"><span></span><span class="sev h">HIGH</span></div>
+    <div class="row"><a href="ravealts-path-disclosure.html#f162">PoC &rarr;</a><span class="sev h">HIGH</span></div>
+  </div>
+
+  <div class="card">
+    <h3>alts_session_id in localStorage &mdash; alts.cool <span class="nb">S5</span></h3>
+    <p>Bearer auth token stored in <code>localStorage</code> instead of an HttpOnly cookie.
+       Readable by any JavaScript on the page — XSS, third-party scripts, or browser extensions
+       immediately yield full account takeover. Admin panel is at the standard <code>/login</code> path with no CAPTCHA.</p>
+    <div class="target">alts.cool localStorage.getItem('alts_session_id') &middot; F-035 &middot; CWE-922</div>
+    <div class="row"><a class="btn" href="localstorage-session.html">&#x25B6; View PoC</a><span class="sev h">HIGH</span></div>
   </div>
 
   <!-- ===== MEDIUM ===== -->
@@ -279,7 +273,7 @@
     <p>Any authenticated user queries any email's credit balance via
        <code>?email={any}</code> query param. No ownership check. Confirmed cross-user read.</p>
     <div class="target">GET /checkout/credit-balance?email= &middot; F-158</div>
-    <div class="row"><span></span><span class="sev m">MEDIUM</span></div>
+    <div class="row"><a class="btn" href="credit-balance-idor.html">&#x25B6; View PoC</a><span class="sev m">MEDIUM</span></div>
   </div>
 
   <div class="card">
@@ -287,7 +281,7 @@
     <p>Both Ghost instances have <code>allow_external_signup:true</code>. Mail not configured &mdash;
        signups fail silently. Version 6.25 + site UUID disclosed via unauthenticated admin site API.</p>
     <div class="target">blog.premiumalts.to &bull; dev-blog.premiumalts.to &middot; F-156/157</div>
-    <div class="row"><span></span><span class="sev m">MEDIUM</span></div>
+    <div class="row"><a class="btn" href="ghost-cms.html">&#x25B6; View PoC</a><span class="sev m">MEDIUM</span></div>
   </div>
 
   <div class="card">

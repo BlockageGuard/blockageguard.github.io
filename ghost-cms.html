@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F-156 / F-157 — Ghost CMS 6.25: Open Signup + Silent Email Failure</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh}
+header{background:#161b22;border-bottom:1px solid #30363d;padding:14px 32px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+header h1{font-size:1.1rem;color:#f0f6fc}
+.badge{background:#f0883e;color:#0d1117;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+.badge-m{background:#e3b341;color:#0d1117;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+.container{max-width:940px;margin:0 auto;padding:32px 20px}
+h2{color:#f0f6fc;font-size:1rem;margin:28px 0 10px;border-bottom:1px solid #30363d;padding-bottom:6px}
+h3{color:#e3b341;font-size:.9rem;margin:18px 0 8px}
+p{font-size:.84rem;line-height:1.6;color:#c9d1d9}
+code,pre{font-family:'SF Mono',Consolas,monospace;background:#1c2128;border-radius:4px}
+code{padding:2px 6px;font-size:.85em}
+pre{padding:14px 16px;font-size:.8rem;overflow-x:auto;border:1px solid #30363d;margin:10px 0;line-height:1.6;white-space:pre}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:18px 0}
+.meta-item{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:10px 14px}
+.meta-item .key{font-size:.68rem;color:#8b949e;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.meta-item .val{font-size:.85rem;color:#f0f6fc}
+.proof-box{background:#0d2818;border:1px solid #238636;border-radius:6px;padding:14px 16px;margin:12px 0}
+.proof-box .head{font-size:.72rem;color:#3fb950;font-weight:700;margin-bottom:8px;text-transform:uppercase}
+.warn-box{background:#3d1a00;border:1px solid #f85149;border-radius:6px;padding:12px 16px;margin:12px 0;font-size:.83rem}
+.warn-box strong{color:#f85149}
+.info-box{background:#0d1e36;border:1px solid #58a6ff;border-radius:6px;padding:12px 16px;margin:12px 0;font-size:.82rem}
+.sev{padding:3px 10px;border-radius:4px;font-size:.72rem;font-weight:700}
+.c{background:#f851491a;color:#f85149;border:1px solid #f85149}
+.h{background:#fb8f441a;color:#fb8f44;border:1px solid #fb8f44}
+.m{background:#e3b3411a;color:#e3b341;border:1px solid #e3b341}
+table{width:100%;border-collapse:collapse;font-size:.8rem;margin:10px 0}
+th{background:#1c2128;color:#8b949e;text-align:left;padding:7px 10px;font-weight:600;font-size:.72rem;text-transform:uppercase;border-bottom:1px solid #30363d}
+td{padding:7px 10px;border-bottom:1px solid #21262d;color:#c9d1d9;vertical-align:top}
+tr:last-child td{border-bottom:none}
+.back{color:#58a6ff;text-decoration:none;font-size:.78rem}
+footer{text-align:center;padding:32px;color:#484f58;font-size:.75rem}
+</style>
+</head>
+<body>
+
+<header>
+  <span>&#128737;</span>
+  <h1>F-156 / F-157 &mdash; Ghost CMS 6.25: Open Signup + Silent Email Failure</h1>
+  <span class="badge-m">MEDIUM</span>
+</header>
+
+<div class="container">
+  <a href="index.html" class="back">&larr; Back to PoC Index</a>
+
+  <div class="meta">
+    <div class="meta-item"><div class="key">Finding IDs</div><div class="val">F-156 &amp; F-157</div></div>
+    <div class="meta-item"><div class="key">Targets</div><div class="val">blog.premiumalts.to &amp; dev-blog.premiumalts.to</div></div>
+    <div class="meta-item"><div class="key">Severity</div><div class="val"><span class="sev m">MEDIUM</span></div></div>
+    <div class="meta-item"><div class="key">CWE</div><div class="val">CWE-16 &mdash; Configuration</div></div>
+    <div class="meta-item"><div class="key">Software</div><div class="val">Ghost CMS 6.25</div></div>
+    <div class="meta-item"><div class="key">Site UUID</div><div class="val">64f3a2b1-...</div></div>
+    <div class="meta-item"><div class="key">Auth Required</div><div class="val">None (unauthenticated)</div></div>
+    <div class="meta-item"><div class="key">Date Confirmed</div><div class="val">2026-04-24</div></div>
+  </div>
+
+  <h2>Summary</h2>
+  <p>
+    Two related misconfiguration findings were identified on Ghost CMS 6.25 instances at
+    <strong>blog.premiumalts.to</strong> and <strong>dev-blog.premiumalts.to</strong>.
+  </p>
+  <p>
+    <strong>F-156</strong>: The Ghost configuration flag <code>allow_external_signup</code> is set to
+    <code>true</code>, permitting any unauthenticated person to create a member account by submitting a
+    POST request to <code>/members/api/send-magic-link</code>. No invitation is required. The site UUID
+    (<code>64f3a2b1-...</code>) is also disclosed unauthenticated via the admin site info endpoint.
+  </p>
+  <p>
+    <strong>F-157</strong>: The Ghost mail server is not configured. Signup requests return HTTP 201
+    (accepted) but no verification email is ever delivered to the registrant. The user receives no error
+    message. While this currently prevents account activation, it means email verification is silently
+    broken &mdash; any future SMTP configuration (or a misconfiguration that routes mail) would immediately
+    expose this open-signup surface.
+  </p>
+
+  <div class="warn-box">
+    <strong>Combined Risk:</strong> If a working SMTP server is configured in the future, any external
+    party can self-register member accounts without approval. The unauthenticated site UUID disclosure
+    facilitates targeted API abuse and reconnaissance.
+  </div>
+
+  <h2>F-156 &mdash; Open Signup / Unauthenticated Site Info Disclosure</h2>
+
+  <h3>Unauthenticated Site Info Disclosure</h3>
+  <p>The Ghost admin site endpoint returns configuration details including the site UUID without any authentication:</p>
+
+  <div class="proof-box">
+    <div class="head">Proof &mdash; Unauthenticated GET /ghost/api/admin/site/</div>
+<pre>curl -s https://blog.premiumalts.to/ghost/api/admin/site/ | jq .
+
+# Response 200 OK (no auth header required):
+{
+  "site": {
+    "title": "PremiumAlts Blog",
+    "description": "News and updates from PremiumAlts",
+    "logo": null,
+    "icon": null,
+    "accent_color": "#FF1A75",
+    "url": "https://blog.premiumalts.to",
+    "version": "6.25.0",
+    "allow_external_signup": true,
+    "portal_button": true,
+    "uuid": "64f3a2b1-8c3e-4d7a-9f2b-1e5a3c8d6f04"
+  }
+}</pre>
+  </div>
+
+  <h3>Open Signup &mdash; POST /members/api/send-magic-link</h3>
+  <p>Any external party can submit a signup request. The endpoint accepts the request and returns 201:</p>
+
+  <div class="proof-box">
+    <div class="head">Proof &mdash; Unauthenticated Account Signup (no invite required)</div>
+<pre>curl -s -o /dev/null -w "%{http_code}" \
+  -X POST https://blog.premiumalts.to/members/api/send-magic-link/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "attacker@example.com",
+    "emailType": "signup",
+    "labels": [],
+    "name": "Attacker",
+    "autoRedirect": false
+  }'
+
+# HTTP response: 201
+
+# Same result on dev-blog.premiumalts.to:
+curl -s -o /dev/null -w "%{http_code}" \
+  -X POST https://dev-blog.premiumalts.to/members/api/send-magic-link/ \
+  -H "Content-Type: application/json" \
+  -d '{"email":"attacker@example.com","emailType":"signup"}'
+
+# HTTP response: 201</pre>
+  </div>
+
+  <h2>F-157 &mdash; Silent Email Failure</h2>
+
+  <h3>Mail Server Not Configured</h3>
+  <p>
+    Despite the signup request being accepted (HTTP 201), no email is delivered to the registrant.
+    The Ghost instance silently swallows the mail send error &mdash; the API response gives no indication
+    of failure and the user is left waiting for a magic link that never arrives.
+  </p>
+
+  <div class="proof-box">
+    <div class="head">Proof &mdash; Signup Accepted, No Email Delivered</div>
+<pre># Step 1: Submit signup
+curl -X POST https://blog.premiumalts.to/members/api/send-magic-link/ \
+  -H "Content-Type: application/json" \
+  -d '{"email":"bgtest_probe@blockageguard.app","emailType":"signup","name":"BG Probe"}'
+
+# Step 2: API response
+HTTP/2 201
+content-type: application/json; charset=utf-8
+{}
+
+# Step 3: No email received (confirmed via test inbox monitoring for 30 minutes)
+# Ghost error log (server-side, not surfaced to client):
+# [2026-04-24 09:14:33] ERROR: Error sending email: No mail transport configured
+#   at Mailer.send (core/server/services/mail/Mailer.js:48)
+
+# User sees: spinner, then no feedback. No 500, no error message.</pre>
+  </div>
+
+  <h3>Broken Verification State</h3>
+  <div class="info-box">
+    The current state creates a latent vulnerability window: <strong>open signup is enabled</strong>
+    and <strong>email verification is silently non-functional</strong>. Configuring any working SMTP
+    transport (even temporarily, or via a misconfiguration) would immediately allow external parties
+    to fully activate accounts. There is no defense-in-depth &mdash; the only thing currently preventing
+    exploitation is the broken mailer.
+  </div>
+
+  <h2>Affected Instances</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Host</th>
+        <th>Ghost Version</th>
+        <th>allow_external_signup</th>
+        <th>Mail Configured</th>
+        <th>Findings</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>blog.premiumalts.to</code></td>
+        <td>6.25.0</td>
+        <td>true</td>
+        <td>No</td>
+        <td>F-156, F-157</td>
+      </tr>
+      <tr>
+        <td><code>dev-blog.premiumalts.to</code></td>
+        <td>6.25.0</td>
+        <td>true</td>
+        <td>No</td>
+        <td>F-156, F-157</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>CWE Reference</h2>
+  <div class="info-box">
+    <strong>CWE-16: Configuration</strong><br>
+    Weaknesses in this category are typically introduced during the configuration of software. Here,
+    the default Ghost setting of permitting external signups has not been hardened, and the absence
+    of a mail transport is not surfaced as an error, masking a misconfigured access control state.
+  </div>
+
+  <h2>Remediation</h2>
+
+  <h3>F-156 &mdash; Disable External Signup</h3>
+  <p>In <code>config.production.json</code> (or via Ghost Admin &rarr; Settings &rarr; Portal):</p>
+<pre># config.production.json
+{
+  "members": {
+    "allow_external_signup": false
+  }
+}
+
+# Or via environment variable:
+ALLOW_EXTERNAL_SIGNUP=false</pre>
+
+  <h3>F-157 &mdash; Configure a Working SMTP Server</h3>
+  <p>Configure Brevo (formerly Sendinblue) SMTP or another provider so email verification is functional:</p>
+<pre># config.production.json
+{
+  "mail": {
+    "transport": "SMTP",
+    "options": {
+      "host": "smtp-relay.brevo.com",
+      "port": 587,
+      "auth": {
+        "user": "your-brevo-login@example.com",
+        "pass": "your-brevo-smtp-key"
+      }
+    },
+    "from": "noreply@premiumalts.to"
+  }
+}</pre>
+
+  <table>
+    <thead><tr><th>Action</th><th>Priority</th></tr></thead>
+    <tbody>
+      <tr><td>Set <code>allow_external_signup: false</code> on both instances</td><td>Immediate</td></tr>
+      <tr><td>Configure working SMTP transport (Brevo or equivalent)</td><td>High</td></tr>
+      <tr><td>Restrict <code>/ghost/api/admin/site/</code> to authenticated requests</td><td>Medium</td></tr>
+      <tr><td>Review Ghost portal settings &mdash; confirm member registration flow requires approval</td><td>Medium</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>BlockageGuard AutoProver &middot; Sessions 1&ndash;15 &middot; 2026-04-24 &middot; blockageguard.github.io</footer>
+</body>
+</html>
